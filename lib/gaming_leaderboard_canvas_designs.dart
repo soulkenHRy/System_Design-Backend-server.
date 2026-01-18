@@ -99,13 +99,36 @@ SQL stores game history
        ↓
 Response sent back to player with new rank
 ```
+
+### Icons Explained
+
+**Desktop Client** - The game running on PC/console that sends score submissions after gameplay.
+
+**Mobile Client** - The game running on phones/tablets that also submits scores and views rankings.
+
+**API Gateway** - Entry point that validates requests, checks authentication, and routes to the right service.
+
+**Ranking Engine** - Core Leaderboard Service that processes score submissions and ranking queries.
+
+**Redis Cache** - Ultra-fast in-memory storage using Sorted Sets to maintain rankings with O(log N) operations.
+
+**SQL Database** - Permanent storage for player profiles, game history, and detailed statistics.
+
+### How They Work Together
+
+1. Player finishes game → Desktop/Mobile Client sends score via HTTP
+2. API Gateway validates the request (is this a real player?)
+3. Ranking Engine processes the score submission
+4. Redis Cache stores score using ZADD (auto-ranks among all players)
+5. SQL Database stores detailed game history and profile data
+6. Player receives response with their new rank instantly
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 300),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 300),
       _createIcon('Mobile Client', 'Client & Interface', 50, 450),
       _createIcon('API Gateway', 'Networking', 250, 375),
-      _createIcon('Leaderboard Service', 'Application Services', 450, 375),
-      _createIcon('Redis Sorted Set', 'Caching,Performance', 650, 300),
+      _createIcon('Ranking Engine', 'Application Services', 450, 375),
+      _createIcon('Redis Cache', 'Caching,Performance', 650, 300),
       _createIcon('SQL Database', 'Database & Storage', 650, 450),
     ],
     'connections': [
@@ -186,18 +209,50 @@ Future: 100 million players
 - 20 Redis shards
 - 5 geographic regions
 ```
+
+### Icons Explained
+
+**Desktop Client** - PC/console game clients submitting scores and viewing leaderboards.
+
+**Mobile Client** - Phone/tablet game clients with the same functionality.
+
+**CDN** - Edge servers worldwide that cache static content close to players for faster loading.
+
+**Global Load Balancer** - Distributes traffic across multiple server clusters by proximity and load.
+
+**Rate Limiter** - Prevents abuse by limiting requests (e.g., max 10 score submissions per minute).
+
+**Message Queue** - Buffers traffic spikes (like during tournaments) so backend isn't overwhelmed.
+
+**Ranking Engine** - Main Leaderboard Service processing scores and queries in parallel clusters.
+
+**Score Processing** - Aggregator that batches score updates to reduce database write load.
+
+**Redis Cache (Shard 1 & 2)** - Sharded Redis cluster where each shard handles a subset of players.
+
+**NoSQL Database** - Permanent storage for all historical data and player information.
+
+### How They Work Together
+
+1. Request hits CDN → cached content served instantly
+2. Dynamic requests → Global Load Balancer routes to nearest healthy cluster
+3. Rate Limiter checks for abuse before processing
+4. Write requests → Message Queue buffers the spike
+5. Score Processing batches updates → Redis Shards updated efficiently
+6. Read requests → Ranking Engine queries Redis Cache directly
+7. All data persisted to NoSQL Database for durability
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 250),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 250),
       _createIcon('Mobile Client', 'Client & Interface', 50, 400),
       _createIcon('CDN', 'Networking', 200, 325),
       _createIcon('Global Load Balancer', 'Networking', 350, 325),
       _createIcon('Rate Limiter', 'Networking', 500, 200),
       _createIcon('Message Queue', 'Message Systems', 500, 450),
-      _createIcon('Leaderboard Service', 'Application Services', 650, 325),
-      _createIcon('Score Aggregator', 'Data Processing', 650, 500),
-      _createIcon('Redis Cluster', 'Caching,Performance', 850, 250),
-      _createIcon('Leaderboard Cache', 'Caching,Performance', 850, 400),
+      _createIcon('Ranking Engine', 'Application Services', 650, 325),
+      _createIcon('Score Processing', 'Data Processing', 650, 500),
+      _createIcon('Redis Cache', 'Caching,Performance', 850, 250),
+      _createIcon('Redis Cache', 'Caching,Performance', 850, 400),
       _createIcon('NoSQL Database', 'Database & Storage', 1050, 325),
     ],
     'connections': [
@@ -288,17 +343,50 @@ With WebSocket:
 - 50,000 persistent connections (low overhead)
 - Only send data when something changes
 - Updates are instant, not delayed by 1 second
+
+### Icons Explained
+
+**Desktop Client** - PC game client that maintains WebSocket connection for live updates.
+
+**Mobile Client** - Phone game client that also uses WebSocket for real-time leaderboard.
+
+**WebSocket Server** - Gateway that keeps persistent connections open with all watching players.
+
+**WebSocket Server (Connection Manager)** - Tracks which players are watching which leaderboards.
+
+**API Gateway** - Handles HTTP score submissions (more reliable than WebSocket for writes).
+
+**Ranking Engine** - Core Leaderboard Service that processes scores and updates rankings.
+
+**Stream Processor** - Change Detection that monitors for ranking changes and triggers notifications.
+
+**Redis Cache** - Sorted Set storage where ranking updates happen instantly.
+
+**Message Queue** - Pub/Sub system that broadcasts ranking changes to all WebSocket servers.
+
+**SQL Database** - Permanent storage for all scores and player history.
+
+### How They Work Together
+
+1. Player opens leaderboard → WebSocket connection established
+2. WebSocket Server registers them with Connection Manager
+3. Player submits score via HTTP → API Gateway → Ranking Engine
+4. Ranking Engine updates Redis Cache with new score
+5. Stream Processor detects ranking change
+6. Change published to Message Queue (Pub/Sub)
+7. All WebSocket Servers receive update → push to watching clients
+8. Player's leaderboard updates instantly without refresh
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 300),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 300),
       _createIcon('Mobile Client', 'Client & Interface', 50, 450),
-      _createIcon('WebSocket Gateway', 'Networking', 250, 375),
-      _createIcon('Connection Manager', 'System Utilities', 250, 550),
+      _createIcon('WebSocket Server', 'Networking', 250, 375),
+      _createIcon('WebSocket Server', 'System Utilities', 250, 550),
       _createIcon('API Gateway', 'Networking', 450, 250),
-      _createIcon('Leaderboard Service', 'Application Services', 450, 375),
-      _createIcon('Change Detection', 'Data Processing', 450, 550),
-      _createIcon('Redis Sorted Set', 'Caching,Performance', 650, 300),
-      _createIcon('Pub/Sub System', 'Message Systems', 650, 450),
+      _createIcon('Ranking Engine', 'Application Services', 450, 375),
+      _createIcon('Stream Processor', 'Data Processing', 450, 550),
+      _createIcon('Redis Cache', 'Caching,Performance', 650, 300),
+      _createIcon('Message Queue', 'Message Systems', 650, 450),
       _createIcon('SQL Database', 'Database & Storage', 850, 375),
     ],
     'connections': [
@@ -401,29 +489,61 @@ Monday 00:00:10 - First score of the week is submitted
 2. **Reduced Size**: Each segment has fewer entries = faster queries
 3. **Historical Analysis**: Track how the game meta changes over time
 4. **Regional Fairness**: Players compete against similar timezones
+
+### Icons Explained
+
+**Desktop Client** - Player's game client requesting segmented leaderboard views.
+
+**API Gateway** - Entry point that routes requests to the leaderboard system.
+
+**Load Balancer** - Leaderboard Router that determines which segment(s) a score belongs to.
+
+**Configuration Service** - Segment Manager that handles creation, rotation, and archival of segments.
+
+**Scheduler** - Triggers time-based events like midnight rollovers and weekly resets.
+
+**Redis Cache (Daily)** - Stores current day's leaderboard that resets at midnight.
+
+**Redis Cache (Weekly)** - Stores current week's leaderboard that resets every Monday.
+
+**Redis Cache (AllTime)** - Stores permanent all-time rankings that never reset.
+
+**Data Warehouse** - Archives historical segments for long-term analysis.
+
+**Analytics Engine** - Analyzes historical data to find patterns and trends.
+
+### How They Work Together
+
+1. Player submits score → API Gateway → Load Balancer (Router)
+2. Router determines segments: Daily_today, Weekly_current, AllTime
+3. Score written to all relevant Redis Cache instances
+4. At midnight UTC → Scheduler triggers Configuration Service
+5. Configuration Service rotates segments (new day starts fresh)
+6. Old segments archived to Data Warehouse
+7. Analytics Engine processes historical data for insights
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 375),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 375),
       _createIcon('API Gateway', 'Networking', 200, 375),
-      _createIcon('Leaderboard Router', 'Application Services', 400, 375),
-      _createIcon('Segment Manager', 'System Utilities', 400, 550),
+      _createIcon('Load Balancer', 'Application Services', 400, 375),
+      _createIcon('Configuration Service', 'System Utilities', 400, 550),
       _createIcon('Scheduler', 'System Utilities', 250, 550),
       _createIcon(
-        'Redis Sorted Set',
+        'Redis Cache',
         'Caching,Performance',
         600,
         200,
         id: 'Redis Daily',
       ),
       _createIcon(
-        'Redis Sorted Set',
+        'Redis Cache',
         'Caching,Performance',
         600,
         350,
         id: 'Redis Weekly',
       ),
       _createIcon(
-        'Redis Sorted Set',
+        'Redis Cache',
         'Caching,Performance',
         600,
         500,
@@ -539,18 +659,51 @@ New rating B = 1450 + 32 * (1 - 0.428) = 1450 + 18.3 = 1468
 2. **Match Verification**: Did the game server confirm this match?
 3. **Win Trading Detection**: Same two players playing repeatedly?
 4. **Smurf Detection**: New account with pro-level performance?
+
+### Icons Explained
+
+**Desktop Client** - Player's game client where competitive matches happen.
+
+**API Gateway** - Entry point for match result submissions.
+
+**Matching Engine** - Match Service that records match results and coordinates processing.
+
+**Score Processing** - Rating Calculator that computes new ELO/MMR ratings after matches.
+
+**Tournament Manager** - Handles organized competition brackets and prize distribution.
+
+**Anti-cheat System** - Validates match integrity and flags suspicious activity.
+
+**Redis Cache** - Stores current player ratings for fast matchmaking and ranking queries.
+
+**SQL Database** - Permanent storage for match history, ratings, and tournament data.
+
+**Notification Service** - Sends rank-up celebrations and match result notifications.
+
+**Admin User** - Dashboard for moderators to review flagged matches and issue bans.
+
+### How They Work Together
+
+1. Match ends → Desktop Client submits result via API Gateway
+2. Matching Engine records match and sends to Anti-cheat System
+3. Anti-cheat validates (no cheating, real match, not win-trading)
+4. If valid → Score Processing calculates new ratings using ELO formula
+5. Redis Cache updated with new ratings
+6. SQL Database stores match history permanently
+7. If rank changed (Silver → Gold) → Notification Service celebrates
+8. Flagged matches appear on Admin User dashboard for review
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 350),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Match Service', 'Application Services', 400, 250),
-      _createIcon('Rating Calculator', 'Data Processing', 400, 400),
-      _createIcon('Tournament Service', 'Application Services', 400, 550),
-      _createIcon('Anti-Cheat Service', 'Security,Monitoring', 600, 200),
-      _createIcon('Redis Sorted Set', 'Caching,Performance', 600, 350),
+      _createIcon('Matching Engine', 'Application Services', 400, 250),
+      _createIcon('Score Processing', 'Data Processing', 400, 400),
+      _createIcon('Tournament Manager', 'Application Services', 400, 550),
+      _createIcon('Anti-cheat System', 'Security,Monitoring', 600, 200),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 350),
       _createIcon('SQL Database', 'Database & Storage', 600, 500),
       _createIcon('Notification Service', 'Message Systems', 800, 350),
-      _createIcon('Admin Dashboard', 'Client & Interface', 800, 500),
+      _createIcon('Admin User', 'Client & Interface', 800, 500),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Match Result'),
@@ -654,16 +807,47 @@ Guild "Phoenix Rising":
 
 "Dragon Slayers" is ranked #1!
 ```
+
+### Icons Explained
+
+**Desktop Client** - Player's game client requesting friends or guild leaderboards.
+
+**API Gateway** - Routes requests to appropriate services based on query type.
+
+**Ranking Engine** - Core Leaderboard Service that fetches scores for specific players.
+
+**Social Graph Service (Friends)** - Manages friend relationships and returns friend lists.
+
+**Social Graph Service (Guild)** - Aggregates guild member scores for team rankings.
+
+**Redis Cache** - Stores individual player scores for fast lookups.
+
+**Graph Database** - Optimized storage for relationship data (who's friends with whom).
+
+**Feed Generation** - Activity Feed that posts social updates ("Player_B beat your score!").
+
+**Notification Service** - Sends real-time alerts for friend activity and challenges.
+
+### How They Work Together
+
+1. Player requests friends leaderboard → API Gateway → Ranking Engine
+2. Ranking Engine asks Social Graph Service for friend list
+3. Social Graph Service queries Graph Database for relationships
+4. Ranking Engine fetches friend scores from Redis Cache
+5. Scores sorted and ranked → "You're #2 among 5 friends!"
+6. For guilds → Social Graph Service (Guild) aggregates all member scores
+7. Activity updates posted via Feed Generation
+8. Real-time alerts via Notification Service
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 350),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Leaderboard Service', 'Application Services', 400, 250),
+      _createIcon('Ranking Engine', 'Application Services', 400, 250),
       _createIcon('Social Graph Service', 'Application Services', 400, 450),
-      _createIcon('Guild Service', 'Application Services', 600, 350),
-      _createIcon('Redis Sorted Set', 'Caching,Performance', 600, 200),
+      _createIcon('Social Graph Service', 'Application Services', 600, 350),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 200),
       _createIcon('Graph Database', 'Database & Storage', 600, 550),
-      _createIcon('Activity Feed', 'Message Systems', 800, 350),
+      _createIcon('Feed Generation', 'Message Systems', 800, 350),
       _createIcon('Notification Service', 'Message Systems', 800, 500),
     ],
     'connections': [
@@ -731,18 +915,65 @@ Each game developer has access to real-time player counts, score distribution ch
 2. **For Platform**: Economy of scale, one team maintains everything
 3. **For Players**: Consistent experience across games
 4. **For Business**: Usage-based pricing model
+
+### Icons Explained
+
+**Desktop Client (Game A, B, C)** - Different games all using the same leaderboard platform.
+
+**API Gateway** - Multi-tenant entry point that routes by game_id to isolate each game's data.
+
+**Configuration Service** - Game Registry storing each game's leaderboard configuration and rules.
+
+**Ranking Engine** - Shared Leaderboard Service that processes scores using game-specific settings.
+
+**Score Processing** - Normalizer that converts different scoring systems for cross-game comparisons.
+
+**Redis Cache** - Namespaced storage where each game's data is completely isolated.
+
+**NoSQL Database** - Permanent multi-tenant storage for all game data.
+
+**Admin User** - Developer Dashboard where game creators manage their leaderboard settings.
+
+### How They Work Together
+
+1. Game A, B, C all send scores to same API Gateway (with game_id)
+2. API Gateway routes to Ranking Engine (shared infrastructure)
+3. Ranking Engine fetches game config from Configuration Service
+4. Score processed according to that game's rules
+5. Score Processing can normalize across games if needed
+6. Redis Cache stores scores namespaced by game (isolated)
+7. NoSQL Database persists all data with game prefixes
+8. Each developer sees only their game on Admin User dashboard
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 250, id: 'Game A'),
-      _createIcon('Game Client', 'Client & Interface', 50, 400, id: 'Game B'),
-      _createIcon('Game Client', 'Client & Interface', 50, 550, id: 'Game C'),
+      _createIcon(
+        'Desktop Client',
+        'Client & Interface',
+        50,
+        250,
+        id: 'Game A',
+      ),
+      _createIcon(
+        'Desktop Client',
+        'Client & Interface',
+        50,
+        400,
+        id: 'Game B',
+      ),
+      _createIcon(
+        'Desktop Client',
+        'Client & Interface',
+        50,
+        550,
+        id: 'Game C',
+      ),
       _createIcon('API Gateway', 'Networking', 250, 400),
-      _createIcon('Game Registry', 'System Utilities', 450, 250),
-      _createIcon('Leaderboard Service', 'Application Services', 450, 400),
-      _createIcon('Score Normalizer', 'Data Processing', 450, 550),
-      _createIcon('Redis Cluster', 'Caching,Performance', 700, 300),
+      _createIcon('Configuration Service', 'System Utilities', 450, 250),
+      _createIcon('Ranking Engine', 'Application Services', 450, 400),
+      _createIcon('Score Processing', 'Data Processing', 450, 550),
+      _createIcon('Redis Cache', 'Caching,Performance', 700, 300),
       _createIcon('NoSQL Database', 'Database & Storage', 700, 500),
-      _createIcon('Admin Dashboard', 'Client & Interface', 900, 400),
+      _createIcon('Admin User', 'Client & Interface', 900, 400),
     ],
     'connections': [
       _createConnection(0, 3, label: 'Game A Score'),
@@ -810,18 +1041,50 @@ Product managers and game designers see charts of player progression, heatmaps o
 2. **Player Retention**: At what rank do players quit?
 3. **Monetization**: Do paying players rank higher?
 4. **Competitive Health**: Is the meta stale?
+
+### Icons Explained
+
+**Desktop Client** - Player's game generating events for every action taken.
+
+**API Gateway** - Routes score updates and game events to appropriate services.
+
+**Ranking Engine** - Core Leaderboard Service that updates rankings as usual.
+
+**Metrics Collector** - Event Collector ingesting millions of player action events per second.
+
+**Stream Processor** - Real-time analysis computing live metrics and detecting anomalies.
+
+**Redis Cache** - Fast score storage for the leaderboard functionality.
+
+**Time Series Database** - Stores metrics over time for historical trend analysis.
+
+**Analytics Engine** - Runs complex batch queries for deep insights and reporting.
+
+**Data Warehouse** - Long-term storage for all historical data and business intelligence.
+
+**Admin User** - Dashboard showing visualizations, charts, and actionable insights.
+
+### How They Work Together
+
+1. Every game action → Metrics Collector captures event
+2. Score events → Ranking Engine → Redis Cache (leaderboard updates)
+3. All events → Stream Processor for real-time dashboards
+4. Stream Processor → Time Series Database for temporal metrics
+5. Analytics Engine runs nightly jobs on Time Series data
+6. Results stored in Data Warehouse for long-term analysis
+7. Admin User views charts: player distribution, churn analysis, balance issues
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 350),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Leaderboard Service', 'Application Services', 400, 250),
-      _createIcon('Event Collector', 'Data Processing', 400, 450),
+      _createIcon('Ranking Engine', 'Application Services', 400, 250),
+      _createIcon('Metrics Collector', 'Data Processing', 400, 450),
       _createIcon('Stream Processor', 'Data Processing', 600, 450),
-      _createIcon('Redis Sorted Set', 'Caching,Performance', 600, 250),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 250),
       _createIcon('Time Series Database', 'Database & Storage', 800, 350),
       _createIcon('Analytics Engine', 'Data Processing', 800, 500),
       _createIcon('Data Warehouse', 'Database & Storage', 1000, 450),
-      _createIcon('Admin Dashboard', 'Client & Interface', 1000, 300),
+      _createIcon('Admin User', 'Client & Interface', 1000, 300),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Events'),
@@ -832,7 +1095,7 @@ Product managers and game designers see charts of player progression, heatmaps o
       _createConnection(4, 6, label: 'Metrics'),
       _createConnection(4, 7, label: 'Analyze'),
       _createConnection(7, 8, label: 'Store'),
-      _createConnection(8, 9, label: 'Dashboard'),
+      _createConnection(8, 9, label: 'Analytics Service'),
       _createConnection(6, 9, label: 'Visualize'),
     ],
   };
@@ -892,9 +1155,39 @@ No traffic at 3 AM? Zero instances running, zero cost. Tournament with 100K play
 - Consistent high traffic (servers cheaper at scale)
 - Ultra-low latency requirements (cold starts)
 - Complex stateful operations
+
+### Icons Explained
+
+**Desktop Client** - Player's game client sending requests to the serverless backend.
+
+**API Gateway** - Managed API Gateway (AWS/GCP) that handles HTTP routing with no servers.
+
+**Cloud Service (Submit Func)** - Serverless function triggered on score submissions.
+
+**Cloud Service (Query Func)** - Serverless function triggered when viewing leaderboards.
+
+**Event Stream** - Managed event streaming for async processing between functions.
+
+**Cloud Service (Process Func)** - Background function for analytics and notifications.
+
+**Redis Cache** - Managed Redis service (ElastiCache/Memorystore) for score storage.
+
+**Cloud Database** - Managed NoSQL database for persistent storage.
+
+**Auto-scaling Group** - Automatic scaling that adds capacity during tournaments, scales to zero at night.
+
+### How They Work Together
+
+1. Request hits managed API Gateway → invokes right Cloud Function
+2. Submit Func handles score submissions → publishes to Event Stream
+3. Query Func handles read requests → queries Redis Cache directly
+4. Event Stream triggers Process Func for async work (analytics)
+5. Process Func updates Redis Cache and Cloud Database
+6. Auto-scaling automatically adjusts capacity based on load
+7. Zero traffic at 3 AM = zero running instances = zero cost
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 350),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
       _createIcon(
         'Cloud Service',
@@ -918,7 +1211,7 @@ No traffic at 3 AM? Zero instances running, zero cost. Tournament with 100K play
         500,
         id: 'Process Func',
       ),
-      _createIcon('Redis Sorted Set', 'Caching,Performance', 800, 300),
+      _createIcon('Redis Cache', 'Caching,Performance', 800, 300),
       _createIcon('Cloud Database', 'Cloud,Infrastructure', 800, 450),
       _createIcon('Auto-scaling Group', 'System Utilities', 400, 600),
     ],
@@ -1000,24 +1293,69 @@ All events flow to Stream Processor (real-time metrics), Analytics Engine (batch
 - **Scale**: 100+ million players
 - **Availability**: 99.99% uptime
 - **Consistency**: Eventual consistency (scores update within seconds)
+
+### Icons Explained
+
+**Desktop Client** - PC/console game clients for score submissions and viewing.
+
+**Mobile Client** - Phone/tablet game clients with full leaderboard access.
+
+**WebSocket Server** - Real-time gateway for live leaderboard updates.
+
+**CDN** - Edge caching for static assets and frequently accessed data.
+
+**Global Load Balancer** - Distributes traffic across regions for reliability.
+
+**Rate Limiter** - Prevents abuse with per-user request limits.
+
+**API Gateway** - Central routing and validation for all requests.
+
+**Ranking Engine** - Core Leaderboard Service processing scores and queries.
+
+**Social Graph Service** - Friends and guild features for social leaderboards.
+
+**Anti-cheat System** - Fraud detection and match validation.
+
+**Redis Cache** - Ultra-fast score storage using Sorted Sets.
+
+**Message Queue** - Pub/Sub for real-time notifications and decoupling.
+
+**NoSQL Database** - Permanent storage for all data.
+
+**Stream Processor** - Real-time analytics and metrics processing.
+
+**Analytics Engine** - Deep analysis for business intelligence.
+
+**Admin User** - Operations dashboard for monitoring and insights.
+
+### How They Work Together
+
+1. Requests enter via CDN/Load Balancer → Rate Limiter checks abuse
+2. API Gateway routes: scores → Ranking Engine, social → Social Graph
+3. Anti-cheat validates before Ranking Engine processes
+4. Redis Cache stores scores, publishes changes via Message Queue
+5. WebSocket Server pushes live updates to watching clients
+6. NoSQL Database persists everything permanently
+7. Stream/Analytics Engines process data for Admin User dashboards
+8. Result: Complete enterprise leaderboard at massive scale
 ''',
     'icons': [
-      _createIcon('Game Client', 'Client & Interface', 50, 200),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 200),
       _createIcon('Mobile Client', 'Client & Interface', 50, 350),
-      _createIcon('WebSocket Gateway', 'Networking', 50, 500),
+      _createIcon('WebSocket Server', 'Networking', 50, 500),
       _createIcon('CDN', 'Networking', 200, 275),
       _createIcon('Global Load Balancer', 'Networking', 350, 275),
       _createIcon('Rate Limiter', 'Networking', 350, 425),
       _createIcon('API Gateway', 'Networking', 500, 350),
-      _createIcon('Leaderboard Service', 'Application Services', 700, 250),
-      _createIcon('Social Service', 'Application Services', 700, 400),
-      _createIcon('Anti-Cheat Service', 'Security,Monitoring', 700, 550),
-      _createIcon('Redis Cluster', 'Caching,Performance', 900, 200),
-      _createIcon('Pub/Sub System', 'Message Systems', 900, 350),
+      _createIcon('Ranking Engine', 'Application Services', 700, 250),
+      _createIcon('Social Graph Service', 'Application Services', 700, 400),
+      _createIcon('Anti-cheat System', 'Security,Monitoring', 700, 550),
+      _createIcon('Redis Cache', 'Caching,Performance', 900, 200),
+      _createIcon('Message Queue', 'Message Systems', 900, 350),
       _createIcon('NoSQL Database', 'Database & Storage', 900, 500),
       _createIcon('Stream Processor', 'Data Processing', 1100, 350),
       _createIcon('Analytics Engine', 'Data Processing', 1100, 500),
-      _createIcon('Admin Dashboard', 'Client & Interface', 1300, 425),
+      _createIcon('Admin User', 'Client & Interface', 1300, 425),
     ],
     'connections': [
       _createConnection(0, 3, label: 'Score'),
@@ -1034,7 +1372,7 @@ All events flow to Stream Processor (real-time metrics), Analytics Engine (batch
       _createConnection(7, 12, label: 'Persist'),
       _createConnection(12, 13, label: 'Process'),
       _createConnection(13, 14, label: 'Analyze'),
-      _createConnection(14, 15, label: 'Dashboard'),
+      _createConnection(14, 15, label: 'Analytics Service'),
     ],
   };
 

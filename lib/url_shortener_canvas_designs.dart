@@ -99,6 +99,31 @@ This is the simplest form of a URL shortener, suitable for small-scale applicati
 ### Data Flow
 1. User submits long URL → API Gateway → App Server → URL Shortening Service → Database
 2. User clicks short URL → API Gateway → App Server → URL Redirect Service → Cache/Database → Redirect
+
+### Icons Explained
+**Web Browser** - Users access the URL shortener through their web browser to create or use short links.
+
+**Mobile Client** - Mobile app users who create or click on short URLs from their phones.
+
+**API Gateway** - The single entry point that receives all requests and routes them to the right service.
+
+**Application Server** - The main server running the core business logic for URL operations.
+
+**URL Shortening Service** - Creates unique short codes and saves the mapping to the original long URL.
+
+**URL Redirect Service** - Looks up short codes and sends users to the original URL.
+
+**SQL Database** - Permanently stores all URL mappings with creation dates and expiry info.
+
+**Cache** - Keeps popular URL mappings in memory for faster lookups.
+
+### How They Work Together
+1. User opens **Web Browser** or **Mobile Client** and enters a long URL
+2. Request goes to **API Gateway** which validates and forwards it
+3. **Application Server** receives the request and decides what to do
+4. For new URLs: **URL Shortening Service** generates a short code and stores it in **SQL Database**
+5. For redirects: **URL Redirect Service** checks **Cache** first, then **SQL Database**
+6. User gets the short URL back or gets redirected to the original
 ''',
     'icons': [
       // Index 0: Web Browser
@@ -192,6 +217,45 @@ A horizontally scalable URL shortener designed to handle millions of requests by
 - Add more server clusters as traffic grows
 - Use consistent hashing for cache distribution
 - Database sharding by short code prefix
+
+### Icons Explained
+**Web Browser** - Desktop users accessing the URL shortener service.
+
+**Mobile Client** - Mobile app users creating or clicking short links.
+
+**Desktop Client** - Native desktop application users.
+
+**CDN** - Content Delivery Network that caches responses at edge locations worldwide for faster access.
+
+**Global Load Balancer** - Distributes traffic across data centers and provides geographic routing.
+
+**Rate Limiter** - Prevents abuse by limiting how many requests each user can make.
+
+**API Gateway** - Routes requests to the appropriate backend services.
+
+**Server Cluster** (3 instances) - Groups of servers that handle portions of traffic for horizontal scaling.
+
+**URL Shortening Service** - Generates unique short codes for new URLs.
+
+**URL Redirect Service** - Handles URL lookups and redirects users.
+
+**Redis Cache** - Distributed cache for sub-millisecond lookups of popular URLs.
+
+**NoSQL Database** - Fast reads for URL lookups.
+
+**SQL Database** - Transactional writes for URL creation.
+
+**Analytics Service** - Tracks all click events asynchronously.
+
+### How They Work Together
+1. Users from **Web Browser**, **Mobile Client**, or **Desktop Client** make requests
+2. **CDN** caches responses at edge for faster delivery
+3. **Global Load Balancer** routes to the nearest data center
+4. **Rate Limiter** checks if user is within allowed limits
+5. **API Gateway** forwards valid requests to **Server Clusters**
+6. Clusters call **URL Shortening Service** or **URL Redirect Service**
+7. Services use **Redis Cache** for fast lookups, then **NoSQL Database** or **SQL Database**
+8. **Analytics Service** logs all clicks for reporting
 ''',
     'icons': [
       // Index 0: Web Browser
@@ -334,6 +398,45 @@ Optimized for maximum redirect performance through a multi-tier caching strategy
 - Write-through for new URLs
 - Read-through with TTL for lookups
 - Popular URLs never expire from cache
+
+### Icons Explained
+**Web Browser** - Users accessing the service through their browser.
+
+**Mobile Client** - Mobile app users.
+
+**CDN** - Content Delivery Network serving cached responses from edge locations.
+
+**CDN Cache** - Edge cache layer at CDN locations, handles 80% of redirects.
+
+**Load Balancer** - Distributes traffic across backend servers.
+
+**Redis Cache** - Distributed cache layer for centralized caching with sub-millisecond lookups.
+
+**In-Memory Cache** - Local application-level cache with LRU eviction, fastest lookup.
+
+**Application Server** - Handles business logic for shortening and redirecting.
+
+**URL Shortening Service** - Creates short URLs and manages the caching strategy.
+
+**URL Redirect Service** - Looks up URLs through the cache hierarchy.
+
+**Browser Cache** - Local browser cache using HTTP headers, instant redirects.
+
+**Key-Value Store** - Primary storage optimized for point lookups.
+
+**SQL Database** - Persistent storage for URL mappings.
+
+**Sync Service** - Keeps all cache layers consistent through pub/sub.
+
+### How They Work Together
+1. User in **Web Browser** or **Mobile Client** requests a URL
+2. **Browser Cache** checked first (0ms) - instant if cached
+3. **CDN** receives request, checks **CDN Cache** (5ms)
+4. On miss, **Load Balancer** forwards to backend
+5. **Redis Cache** (2ms) and **In-Memory Cache** (0.1ms) checked
+6. On miss, **Application Server** calls services
+7. **URL Redirect Service** queries **Key-Value Store** or **SQL Database** (10ms)
+8. **Sync Service** propagates new URLs to all cache layers
 ''',
     'icons': [
       // Index 0: Web Browser
@@ -459,6 +562,49 @@ Click Event → Message Queue → Stream Processor
                               ↓
          Time Series DB ← → Analytics Engine → Data Warehouse
 ```
+
+### Icons Explained
+**Web Browser** - Users clicking on short URLs from their browser.
+
+**Mobile Client** - Mobile users accessing short links.
+
+**API Gateway** - Entry point that routes all requests.
+
+**Application Server** - Processes requests and coordinates services.
+
+**URL Shortening Service** - Creates new short URLs.
+
+**URL Redirect Service** - Handles redirects and logs click events.
+
+**Message Queue** - Decouples click logging from redirect response to ensure no data loss.
+
+**Stream Processor** - Real-time processing that enriches click data with geo-IP and device info.
+
+**Analytics Engine** - Complex event processing for click-through rates and pattern detection.
+
+**Cache** - Stores frequently accessed URL mappings.
+
+**SQL Database** - Persistent storage for URL data.
+
+**Time Series Database** - Stores time-stamped metrics for real-time dashboards.
+
+**Data Warehouse** - Long-term analytics storage for historical reports.
+
+**Monitoring System** - Tracks system health and performance.
+
+**Metrics Collector** - Gathers metrics from all components.
+
+**Admin User** - Views analytics dashboards and generates reports.
+
+### How They Work Together
+1. Users from **Web Browser** or **Mobile Client** click short links
+2. **API Gateway** routes to **Application Server**
+3. **URL Redirect Service** redirects user and sends click event to **Message Queue**
+4. **Stream Processor** enriches event data (location, device, time)
+5. Data flows to **Time Series Database** for real-time metrics
+6. **Analytics Engine** calculates aggregations and patterns
+7. **Data Warehouse** stores processed reports
+8. **Admin User** views dashboards via **Metrics Collector**
 ''',
     'icons': [
       // Index 0: Web Browser
@@ -592,6 +738,51 @@ A modern cloud-native architecture decomposing the URL shortener into independen
          ↓                   ↓                   ↓
                ← Message Queue →
 ```
+
+### Icons Explained
+**Web Browser** - Users accessing the URL shortener through a browser.
+
+**Mobile Client** - Mobile app users.
+
+**CDN** - Caches responses at edge locations.
+
+**API Gateway** - Routes requests to the service mesh.
+
+**Service Mesh** - Handles service-to-service communication with load balancing, retries, and mTLS.
+
+**Microservice** (URL Generator) - Dedicated service for creating short URLs.
+
+**Microservice** (URL Resolver) - Handles redirect lookups only, optimized for reads.
+
+**Microservice** (Analytics) - Processes click events asynchronously.
+
+**URL Shortening Service** - The logic layer within the generator microservice.
+
+**URL Redirect Service** - The logic layer within the resolver microservice.
+
+**Analytics Service** - The logic layer within the analytics microservice.
+
+**Key-Value Store** - Database owned by the URL Generator microservice.
+
+**NoSQL Database** - Database owned by the URL Resolver microservice.
+
+**Time Series Database** - Database owned by the Analytics microservice.
+
+**Message Queue** - Enables async communication between microservices.
+
+**Configuration Service** - Centralized config management with feature flags.
+
+**Monitoring System** - Observes all microservices for health and metrics.
+
+### How They Work Together
+1. Users from **Web Browser** or **Mobile Client** send requests
+2. **CDN** caches responses, forwards to **API Gateway**
+3. **API Gateway** sends to **Service Mesh** for routing
+4. **Service Mesh** routes to appropriate **Microservice**
+5. Each microservice uses its own database (**Key-Value Store**, **NoSQL Database**, **Time Series Database**)
+6. **Message Queue** enables async events between services
+7. **Configuration Service** provides settings to all microservices
+8. **Monitoring System** collects metrics from all services
 ''',
     'icons': [
       // Index 0: Web Browser
@@ -742,6 +933,41 @@ Multi-Region: 99.999% (5.26 minutes/year)
 2. **Region Failure** → DNS failover to other region
 3. **Database Failure** → Automatic replica promotion
 4. **Network Partition** → Each region operates independently
+
+### Icons Explained
+**User** - End users accessing the URL shortener service.
+
+**DNS Server** - GeoDNS that routes users to the nearest region with health-aware resolution.
+
+**Global Load Balancer** - Distributes traffic across regions with health monitoring.
+
+**Geographic Region** (Region 1 & 2) - Self-sufficient regions with complete stacks.
+
+**Load Balancer** (LB 1 & 2) - Regional load balancers distributing traffic within each region.
+
+**Server Cluster** (4 instances) - Multiple clusters per region for N+1 redundancy.
+
+**Redis Cache** (2 instances) - Regional caches for fast lookups.
+
+**SQL Database** (DB 1 & 2) - Regional databases with replication.
+
+**Sync Service** - Cross-region data replication with conflict resolution.
+
+**Backup Service** - Regular snapshots to geo-redundant cold storage.
+
+**Monitoring System** - 24/7 health monitoring across all regions.
+
+**Alert System** - Pager alerts for critical issues and failover triggers.
+
+### How They Work Together
+1. **User** makes DNS request to **DNS Server**
+2. **DNS Server** resolves to **Global Load Balancer**
+3. **Global Load Balancer** routes to nearest **Geographic Region**
+4. Regional **Load Balancer** distributes across **Server Clusters**
+5. Clusters use **Redis Cache** for fast lookups, **SQL Database** for persistence
+6. **Sync Service** replicates data between Region 1 and Region 2
+7. **Backup Service** creates periodic snapshots
+8. **Monitoring System** watches health, **Alert System** triggers failover if needed
 ''',
     'icons': [
       // Index 0: User
@@ -941,6 +1167,49 @@ An enterprise-grade security-focused architecture with multiple layers of protec
 - Malicious URL blocking
 - Abuse rate limiting
 - Complete audit logging
+
+### Icons Explained
+**User** - Regular users creating or clicking short URLs.
+
+**Admin User** - Administrators with elevated access to manage the system.
+
+**Firewall** - Web Application Firewall that filters malicious traffic and blocks attacks.
+
+**Security Gateway** - SSL/TLS termination and request inspection layer.
+
+**Rate Limiter** - Prevents brute force attacks with per-IP and per-user limits.
+
+**Authentication** - Validates JWT/OAuth tokens and manages API keys.
+
+**Authorization** - Role-based access control checking permissions.
+
+**API Gateway** - Routes authenticated requests to backend services.
+
+**Application Server** - Core business logic processing.
+
+**Fraud Detection** - ML-based detection of spam campaigns and abuse.
+
+**Security Scanner** - Scans destination URLs for malware and phishing.
+
+**URL Shortening Service** - Creates short URLs after security validation.
+
+**SQL Database** - Stores URL mappings and security logs.
+
+**Logging Service** - Comprehensive audit trail for forensic investigation.
+
+**Monitoring System** - Tracks system health and security events.
+
+**Alert System** - Triggers alerts on security anomalies.
+
+### How They Work Together
+1. **User** or **Admin User** sends request through **Firewall**
+2. **Firewall** filters malicious traffic, **Rate Limiter** checks limits
+3. **Security Gateway** inspects request, **Authentication** validates identity
+4. **Authorization** checks permissions, **API Gateway** routes request
+5. **Application Server** coordinates with **Fraud Detection** and **Security Scanner**
+6. Only clean, safe URLs go to **URL Shortening Service**
+7. **Logging Service** records all actions for audit
+8. **Monitoring System** watches for anomalies, **Alert System** notifies on issues
 ''',
     'icons': [
       // Index 0: User
@@ -1075,6 +1344,49 @@ Serverless:  ~5/month (pay-per-use)
 - Cold start latency (100-500ms first request)
 - Execution time limits (15 min max)
 - Vendor lock-in considerations
+
+### Icons Explained
+**Web Browser** - Users accessing the service through their browser.
+
+**Mobile Client** - Mobile app users.
+
+**CDN** - Caches responses at edge locations globally.
+
+**API Gateway** - Managed API gateway that routes to serverless functions.
+
+**Cloud Service** (Create Function) - Serverless function for generating short URLs.
+
+**Cloud Service** (Redirect Function) - Serverless function for handling redirects.
+
+**Cloud Service** (Analytics Function) - Serverless function for processing clicks.
+
+**URL Shortening Service** - The logic layer within the create function.
+
+**URL Redirect Service** - The logic layer within the redirect function.
+
+**Analytics Service** - The logic layer within the analytics function.
+
+**Cloud Database** - Serverless database (like DynamoDB) with pay-per-request pricing.
+
+**Cloud Storage** - Object storage for static assets and data files.
+
+**Event Stream** - Managed event streaming (Kinesis/Pub-Sub) triggering analytics.
+
+**Stream Processor** - Processes click events from the event stream.
+
+**Auto-scaling Group** - Cloud-managed scaling that scales functions from 0 to 1000s.
+
+**Monitoring System** - Tracks function invocations, latency, and errors.
+
+### How They Work Together
+1. Users from **Web Browser** or **Mobile Client** send requests
+2. **CDN** caches responses, forwards to **API Gateway**
+3. **API Gateway** invokes appropriate **Cloud Service** (function)
+4. Functions execute **URL Shortening Service**, **URL Redirect Service**, or **Analytics Service**
+5. Services use **Cloud Database** and **Cloud Storage** for data
+6. **Event Stream** receives click events, triggers **Stream Processor**
+7. **Auto-scaling Group** manages function scaling automatically
+8. **Monitoring System** tracks all function metrics
 ''',
     'icons': [
       // Index 0: Web Browser
@@ -1226,6 +1538,43 @@ A URL shortener with built-in expiration support, allowing users to create time-
 - 30 days (monthly)
 - Custom (premium feature)
 - Never (default, costs more)
+
+### Icons Explained
+**Web Browser** - Users creating or clicking short URLs with expiration.
+
+**API Gateway** - Entry point for all requests.
+
+**Application Server** - Processes requests and coordinates services.
+
+**URL Shortening Service** - Creates short URLs with specified TTL values.
+
+**URL Redirect Service** - Handles redirects and checks expiration status.
+
+**Expiration Service** - Checks if URLs have expired, returns 410 Gone for expired ones.
+
+**Scheduler** - Cron-based job scheduler that triggers cleanup at regular intervals.
+
+**Redis Cache** - Cache with native TTL support that auto-evicts expired entries.
+
+**SQL Database** - Stores URL mappings with expires_at timestamp.
+
+**Message Queue** - Queues cleanup jobs for reliable batch processing.
+
+**Batch Processor** - Processes expired URLs in batches during off-peak hours.
+
+**Notification Service** - Sends expiry warnings before URLs expire.
+
+**Email Service** - Delivers expiry notifications and renewal options to users.
+
+### How They Work Together
+1. **Web Browser** user creates URL with TTL (e.g., 7 days)
+2. **API Gateway** routes to **Application Server**
+3. **URL Shortening Service** stores in **Redis Cache** (with TTL) and **SQL Database** (with expires_at)
+4. **Scheduler** periodically triggers **Expiration Service**
+5. **Expiration Service** finds expiring URLs, sends to **Notification Service**
+6. **Notification Service** uses **Email Service** to warn owners
+7. Expired URLs queued in **Message Queue** for **Batch Processor**
+8. **Batch Processor** deletes expired entries from **SQL Database**
 ''',
     'icons': [
       // Index 0: Web Browser
@@ -1368,6 +1717,72 @@ An enterprise-grade, production-ready URL shortener combining all best practices
 - Availability: 99.99% uptime
 - Throughput: 100K+ requests/second
 - Storage: Billions of URL mappings
+
+### Icons Explained
+**Web Browser** - Desktop users accessing the URL shortener.
+
+**Mobile Client** - Mobile app users.
+
+**Third Party API** - External applications integrating via API.
+
+**CDN** - Content Delivery Network for edge caching.
+
+**DNS Server** - Resolves domain names to IP addresses.
+
+**Firewall** - Web Application Firewall for attack prevention.
+
+**Rate Limiter** - Abuse protection limiting request frequency.
+
+**API Gateway** - Central request routing.
+
+**Authentication** - Validates user identity and tokens.
+
+**Load Balancer** - Distributes traffic across server clusters.
+
+**Server Cluster** (2 instances) - Application servers for redundancy.
+
+**URL Shortening Service** - Creates new short URLs.
+
+**URL Redirect Service** - Handles URL lookups and redirects.
+
+**Expiration Service** - Manages URL lifecycle and cleanup.
+
+**Redis Cache** - Distributed cache layer.
+
+**In-Memory Cache** - Local hot cache for fastest lookups.
+
+**SQL Database** - Transactional storage for writes.
+
+**NoSQL Database** - Fast reads for URL lookups.
+
+**Message Queue** - Queues click events for analytics.
+
+**Stream Processor** - Real-time event processing.
+
+**Analytics Engine** - Aggregates metrics and patterns.
+
+**Data Warehouse** - Long-term analytics storage.
+
+**Monitoring System** - Tracks system health.
+
+**Logging Service** - Records all system events.
+
+**Alert System** - Notifies on issues.
+
+**Admin User** - Views dashboards and manages the system.
+
+### How They Work Together
+1. Users from **Web Browser**, **Mobile Client**, or **Third Party API** request
+2. **DNS Server** resolves, **CDN** caches at edge
+3. **Firewall** filters attacks, **Rate Limiter** checks limits
+4. **Authentication** validates, **API Gateway** routes to **Load Balancer**
+5. **Load Balancer** distributes to **Server Clusters**
+6. Services (**URL Shortening Service**, **URL Redirect Service**, **Expiration Service**) process
+7. **Redis Cache** and **In-Memory Cache** provide fast lookups
+8. **SQL Database** handles writes, **NoSQL Database** handles reads
+9. **Message Queue** → **Stream Processor** → **Analytics Engine** → **Data Warehouse**
+10. **Monitoring System** and **Logging Service** track everything
+11. **Admin User** views reports via **Data Warehouse**
 ''',
     'icons': [
       // Index 0: Web Browser

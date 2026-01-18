@@ -115,6 +115,34 @@ Driver rating       25%      4.9 stars = high
 Wait time           20%      Driver idle 10 min = boost
 Acceptance rate     15%      90% = reliable
 ```
+
+### Icons Explained
+
+**Mobile Client (Rider App)** - The rider's phone app for requesting rides, seeing driver location, and paying.
+
+**Mobile Client (Driver App)** - The driver's phone app for accepting rides, navigation, and earnings.
+
+**API Gateway** - Single entry point that routes all requests from both apps to the right services.
+
+**Microservice** - The core Ride Service that manages ride lifecycle: creation, matching, completion.
+
+**Location Service** - Tracks and stores driver positions, answers "who's nearby?" queries.
+
+**Matching Engine** - Algorithm that pairs riders with the best available driver based on distance, rating, and fairness.
+
+**Redis Cache** - Stores current driver positions using geospatial indexing (Redis GEO) for fast nearby lookups.
+
+**Notification Service** - Sends push notifications to drivers about new ride requests and to riders about driver arrival.
+
+### How They Work Together
+
+1. Rider opens app → Mobile Client sends GPS location to API Gateway
+2. Rider requests ride → Microservice creates ride request
+3. Microservice asks Matching Engine to find best driver
+4. Matching Engine queries Redis Cache for nearby available drivers
+5. Location Service continuously updates driver positions in Redis Cache
+6. Best driver selected → Notification Service alerts their Mobile Client
+7. Driver accepts → both apps updated with ride details
 ''',
     'icons': [
       _createIcon(
@@ -132,10 +160,10 @@ Acceptance rate     15%      90% = reliable
         id: 'Driver App',
       ),
       _createIcon('API Gateway', 'Networking', 250, 375),
-      _createIcon('Ride Service', 'Application Services', 450, 300),
-      _createIcon('Driver Location Service', 'Application Services', 450, 450),
-      _createIcon('Matching Service', 'Data Processing', 650, 375),
-      _createIcon('Redis', 'Caching,Performance', 850, 300),
+      _createIcon('Microservice', 'Application Services', 450, 300),
+      _createIcon('Location Service', 'Application Services', 450, 450),
+      _createIcon('Matching Engine', 'Data Processing', 650, 375),
+      _createIcon('Redis Cache', 'Caching,Performance', 850, 300),
       _createIcon('Notification Service', 'Message Systems', 850, 450),
     ],
     'connections': [
@@ -226,6 +254,34 @@ Updates per driver: 1 per 4 seconds
 Total updates: 5M / 4 = 1.25M updates/second
 Storage per day: 100GB+ of location data
 ```
+
+### Icons Explained
+
+**Mobile Client (Driver App)** - Sends GPS updates every 3-4 seconds containing coordinates, speed, and heading.
+
+**Mobile Client (Rider App)** - Displays the live map showing driver's current position and ETA.
+
+**API Gateway** - High-throughput location gateway that receives millions of GPS updates per second.
+
+**Stream Processor** - Processes location events in real-time: validates, enriches with ride_id, and routes to consumers.
+
+**Redis Cache** - Stores current driver positions using GEOADD commands for instant geospatial queries.
+
+**Time Series Database** - Records historical positions for route tracking, trip playback, and analytics.
+
+**WebSocket Server** - Maintains persistent connections with riders to push driver location updates instantly.
+
+**Map Service** - Provides map tiles and visualization data so users can see the car moving on a real map.
+
+### How They Work Together
+
+1. Driver App sends GPS coordinates every 3-4 seconds
+2. API Gateway receives update and passes to Stream Processor
+3. Stream Processor validates and stores current position in Redis Cache
+4. Stream Processor also saves to Time Series Database for history
+5. For active rides, Stream Processor pushes to WebSocket Server
+6. WebSocket Server instantly sends update to Rider App
+7. Rider App displays moving car icon using Map Service tiles
 ''',
     'icons': [
       _createIcon(
@@ -242,11 +298,11 @@ Storage per day: 100GB+ of location data
         450,
         id: 'Rider App',
       ),
-      _createIcon('Location Gateway', 'Networking', 250, 300),
+      _createIcon('API Gateway', 'Networking', 250, 300),
       _createIcon('Stream Processor', 'Data Processing', 450, 300),
-      _createIcon('Redis', 'Caching,Performance', 650, 200),
+      _createIcon('Redis Cache', 'Caching,Performance', 650, 200),
       _createIcon('Time Series Database', 'Database & Storage', 650, 400),
-      _createIcon('WebSocket Gateway', 'Networking', 450, 500),
+      _createIcon('WebSocket Server', 'Networking', 450, 500),
       _createIcon('Map Service', 'Application Services', 250, 500),
     ],
     'connections': [
@@ -346,6 +402,34 @@ Solution: Minimum driver coverage requirements
 Concern: Drivers gaming the system?
 Solution: Detect and penalize artificial shortages
 ```
+
+### Icons Explained
+
+**Mobile Client (Rider App)** - Shows the rider the current surge multiplier before they confirm the ride request.
+
+**API Gateway** - Routes ride requests and queries the current surge pricing for the pickup location.
+
+**Stream Processor (Demand)** - Counts ride requests per zone per minute to measure demand levels.
+
+**Stream Processor (Supply)** - Tracks available drivers per zone to measure supply levels.
+
+**Geospatial Database** - Divides the city into hexagonal zones (H3 indexing) and stores supply/demand per zone.
+
+**Pricing Engine** - Calculates surge multipliers based on supply/demand ratios with smoothing and caps.
+
+**Redis Cache** - Stores current surge multipliers for each zone for instant lookups.
+
+**Analytics Engine** - Generates driver "heat maps" showing high-surge zones to redistribute supply.
+
+### How They Work Together
+
+1. Ride requests flow to Stream Processor (Demand) which counts per zone
+2. Driver locations flow to Stream Processor (Supply) which counts per zone
+3. Both feed into Geospatial Database organized by H3 hexagons
+4. Pricing Engine calculates: Multiplier = Demand/Supply with smoothing
+5. Results cached in Redis Cache for fast lookup on ride requests
+6. Analytics Engine shows surge zones on driver's heat map
+7. When rider requests, API Gateway checks Redis Cache for current multiplier
 ''',
     'icons': [
       _createIcon(
@@ -356,12 +440,12 @@ Solution: Detect and penalize artificial shortages
         id: 'Rider App',
       ),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Demand Aggregator', 'Data Processing', 400, 200),
-      _createIcon('Supply Tracker', 'Data Processing', 400, 500),
-      _createIcon('Geo Indexer', 'Application Services', 600, 350),
+      _createIcon('Stream Processor', 'Data Processing', 400, 200),
+      _createIcon('Stream Processor', 'Data Processing', 400, 500),
+      _createIcon('Geospatial Database', 'Application Services', 600, 350),
       _createIcon('Pricing Engine', 'Data Processing', 800, 350),
-      _createIcon('Redis', 'Caching,Performance', 800, 200),
-      _createIcon('Heat Map Service', 'Application Services', 800, 500),
+      _createIcon('Redis Cache', 'Caching,Performance', 800, 200),
+      _createIcon('Analytics Engine', 'Application Services', 800, 500),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Request Ride'),
@@ -464,15 +548,43 @@ Check for:
 - Fake rides (driver-rider collusion)
 - Promo abuse (multiple accounts)
 ```
+
+### Icons Explained
+
+**Microservice** - The Ride Service that triggers payment flow when a ride ends.
+
+**Pricing Engine** - Fare Calculator that computes ride cost: base fare + distance + time + surge.
+
+**Configuration Service** - Promo Service that applies discount codes, first-ride bonuses, and credits.
+
+**Payment Gateway (Coordinator)** - Payment Service that orchestrates the entire payment flow.
+
+**Payment Gateway (External)** - External payment processor (Stripe/Braintree) that charges the rider's card.
+
+**Payment Gateway (Wallet)** - Wallet Service that manages credits, debits, and balance tracking.
+
+**Payment Gateway (Payout)** - Payout Service that transfers earnings to driver bank accounts weekly.
+
+**SQL Database** - Stores all payment transactions, receipts, and financial records.
+
+### How They Work Together
+
+1. Ride ends → Microservice sends ride data to Pricing Engine
+2. Pricing Engine calculates fare based on distance, time, and surge
+3. Configuration Service applies any discounts or promo codes
+4. Payment Gateway coordinator charges rider via External Payment Gateway
+5. Wallet Service handles credits and stores transaction
+6. Revenue split: 75% to driver via Payout Service, 25% to platform
+7. All transactions recorded in SQL Database
 ''',
     'icons': [
-      _createIcon('Ride Service', 'Application Services', 50, 350),
-      _createIcon('Fare Calculator', 'Data Processing', 250, 250),
-      _createIcon('Promo Service', 'Application Services', 250, 450),
-      _createIcon('Payment Service', 'Application Services', 450, 350),
+      _createIcon('Microservice', 'Application Services', 50, 350),
+      _createIcon('Pricing Engine', 'Data Processing', 250, 250),
+      _createIcon('Configuration Service', 'Application Services', 250, 450),
+      _createIcon('Payment Gateway', 'Application Services', 450, 350),
       _createIcon('Payment Gateway', 'Networking', 650, 250),
-      _createIcon('Wallet Service', 'Application Services', 650, 450),
-      _createIcon('Payout Service', 'Application Services', 850, 350),
+      _createIcon('Payment Gateway', 'Application Services', 650, 450),
+      _createIcon('Payment Gateway', 'Application Services', 850, 350),
       _createIcon('SQL Database', 'Database & Storage', 850, 550),
     ],
     'connections': [
@@ -568,16 +680,44 @@ Good ETA experience:
 - Higher completion rates
 - Better ratings
 ```
+
+### Icons Explained
+
+**Mobile Client** - User's phone displaying ETA, route on map, and turn-by-turn directions.
+
+**API Gateway** - Routes ETA and navigation requests to the appropriate services.
+
+**Map Routing** - Routing Engine that calculates shortest/fastest paths through the road network.
+
+**Analytics Engine** - Traffic Service providing real-time congestion, accidents, and road conditions.
+
+**Map Service** - Provides road network data (the graph) that the routing engine uses.
+
+**ML Model** - Machine learning model trained on millions of trips to predict actual ETA more accurately.
+
+**Map Routing (Navigation)** - Navigation Service that provides turn-by-turn guidance to the driver.
+
+**Redis Cache** - Caches common routes and ETAs for faster repeated lookups.
+
+### How They Work Together
+
+1. User requests ETA → API Gateway routes to Map Routing engine
+2. Map Routing calculates path using road data from Map Service
+3. Analytics Engine adds real-time traffic conditions
+4. ML Model refines prediction based on historical patterns
+5. Combined ETA returned and cached in Redis Cache
+6. During ride, Map Routing (Navigation) guides driver turn-by-turn
+7. System continuously updates ETA as traffic changes
 ''',
     'icons': [
       _createIcon('Mobile Client', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Routing Engine', 'Data Processing', 400, 250),
-      _createIcon('Traffic Service', 'Application Services', 400, 450),
-      _createIcon('Map Data Service', 'Database & Storage', 600, 200),
-      _createIcon('ML Pipeline', 'Data Processing', 600, 350),
-      _createIcon('Navigation Service', 'Application Services', 600, 500),
-      _createIcon('Route Cache', 'Caching,Performance', 800, 350),
+      _createIcon('Map Routing', 'Data Processing', 400, 250),
+      _createIcon('Analytics Engine', 'Application Services', 400, 450),
+      _createIcon('Map Service', 'Database & Storage', 600, 200),
+      _createIcon('ML Model', 'Data Processing', 600, 350),
+      _createIcon('Map Routing', 'Application Services', 600, 500),
+      _createIcon('Redis Cache', 'Caching,Performance', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Get ETA'),
@@ -676,6 +816,35 @@ Vehicle Reg         1 year       30 days before
 Insurance           6 months     14 days before
 Background Check    1 year       Auto-renewal
 ```
+
+### Icons Explained
+
+**Mobile Client (Driver App)** - Where drivers submit applications, upload documents, and check their status.
+
+**Microservice** - Application Service that collects and coordinates the driver application process.
+
+**Authentication** - Document Verification using OCR to extract and validate license, registration, and insurance.
+
+**Fraud Detection** - Background Check integration with third-party services for criminal/driving history.
+
+**Analytics Service** - Inspection Service for virtual or in-person vehicle safety checks.
+
+**Authorization** - Compliance Engine that aggregates all verification results and makes the approve/deny decision.
+
+**Analytics Service (Rating)** - Rating Service that monitors driver performance and enforces quality standards.
+
+**SQL Database** - Stores driver profiles, documents, verification status, and performance history.
+
+### How They Work Together
+
+1. Driver submits application via Mobile Client
+2. Microservice coordinates the verification process
+3. Authentication verifies documents using OCR
+4. Fraud Detection runs background check (3-7 days)
+5. Analytics Service schedules and records vehicle inspection
+6. Authorization aggregates all results → Approve or Deny
+7. Once active, Analytics Service (Rating) monitors ongoing performance
+8. All data stored in SQL Database for compliance records
 ''',
     'icons': [
       _createIcon(
@@ -685,12 +854,12 @@ Background Check    1 year       Auto-renewal
         350,
         id: 'Driver App',
       ),
-      _createIcon('Application Service', 'Application Services', 250, 350),
-      _createIcon('Document Verification', 'Security,Monitoring', 450, 200),
-      _createIcon('Background Check', 'Security,Monitoring', 450, 350),
-      _createIcon('Inspection Service', 'Application Services', 450, 500),
-      _createIcon('Compliance Engine', 'Data Processing', 650, 350),
-      _createIcon('Rating Service', 'Application Services', 850, 350),
+      _createIcon('Microservice', 'Application Services', 250, 350),
+      _createIcon('Authentication', 'Security,Monitoring', 450, 200),
+      _createIcon('Fraud Detection', 'Security,Monitoring', 450, 350),
+      _createIcon('Analytics Service', 'Application Services', 450, 500),
+      _createIcon('Authorization', 'Data Processing', 650, 350),
+      _createIcon('Analytics Service', 'Application Services', 850, 350),
       _createIcon('SQL Database', 'Database & Storage', 850, 550),
     ],
     'connections': [
@@ -794,6 +963,36 @@ High speed          >100 mph             Alert + check
 Long ride           >2x expected         Check-in
 Crash detection     Accelerometer spike  Emergency call
 ```
+
+### Icons Explained
+
+**Mobile Client (Rider App)** - Where riders share trips, tap emergency button, and respond to safety check-ins.
+
+**Mobile Client (Driver App)** - Sends location data and receives safety alerts during rides.
+
+**Fraud Detection (Safety Hub)** - Central safety coordination that handles all safety features and escalations.
+
+**Sync Service** - Trip Sharing Service that generates shareable links for trusted contacts to monitor rides.
+
+**Fraud Detection (Anomaly)** - AI-powered anomaly detection that monitors for route deviations, long stops, and speed issues.
+
+**Alert System (Emergency)** - Emergency Service that handles 911 integration and urgent safety responses.
+
+**Notification Service (Check-in)** - Sends "Is everything okay?" prompts when anomalies are detected.
+
+**Alert System (Incident)** - Incident Response team that handles confirmed safety issues and escalations.
+
+**Notification Service (Support)** - 24/7 support service for post-ride issue reporting and resolution.
+
+### How They Work Together
+
+1. During ride, Fraud Detection (Anomaly) monitors driver location patterns
+2. If anomaly detected → Notification Service sends check-in to Rider App
+3. Rider can share trip → Sync Service creates link for trusted contacts
+4. If emergency button pressed → Alert System (Emergency) contacts 911
+5. Location shared with emergency services automatically
+6. Confirmed incidents → Alert System (Incident) takes over
+7. Post-ride, Notification Service (Support) handles any reports
 ''',
     'icons': [
       _createIcon(
@@ -810,13 +1009,13 @@ Crash detection     Accelerometer spike  Emergency call
         450,
         id: 'Driver App',
       ),
-      _createIcon('Safety Service', 'Security,Monitoring', 250, 375),
-      _createIcon('Trip Sharing Service', 'Application Services', 450, 200),
-      _createIcon('Anomaly Detection', 'Data Processing', 450, 375),
-      _createIcon('Emergency Service', 'Security,Monitoring', 450, 550),
+      _createIcon('Fraud Detection', 'Security,Monitoring', 250, 375),
+      _createIcon('Sync Service', 'Application Services', 450, 200),
+      _createIcon('Fraud Detection', 'Data Processing', 450, 375),
+      _createIcon('Alert System', 'Security,Monitoring', 450, 550),
       _createIcon('Notification Service', 'Message Systems', 650, 300),
-      _createIcon('Incident Response', 'Application Services', 650, 450),
-      _createIcon('Support Service', 'Application Services', 850, 375),
+      _createIcon('Alert System', 'Application Services', 650, 450),
+      _createIcon('Notification Service', 'Application Services', 850, 375),
     ],
     'connections': [
       _createConnection(0, 2, label: 'Share/SOS'),
@@ -915,6 +1114,34 @@ Pool Ride (2 riders):
 
 Everyone wins except traffic.
 ```
+
+### Icons Explained
+
+**Mobile Client (Rider A)** - First rider requesting a Pool ride who may be matched with others.
+
+**Mobile Client (Rider B)** - Second rider whose route overlaps with Rider A for a shared ride.
+
+**API Gateway** - Routes Pool requests and manages communication between riders and services.
+
+**Matching Engine** - Pool Matching Service that finds compatible riders going the same direction.
+
+**Map Routing** - Route Optimizer that calculates efficient pickup/dropoff order with minimal detours.
+
+**Pricing Engine** - Fare Splitter that calculates discounted fares for each rider based on shared distance.
+
+**Scheduler** - Real-time Coordinator that updates navigation and notifies all parties of changes.
+
+**Mobile Client (Driver)** - Driver's app showing optimized route with multiple pickup/dropoff points.
+
+### How They Work Together
+
+1. Rider A requests Pool → API Gateway routes to Matching Engine
+2. While Rider A is en route, Matching Engine searches for compatible riders
+3. Rider B requests Pool → Matching Engine checks overlap with Rider A
+4. Map Routing calculates: how much detour to add Rider B?
+5. If acceptable, both matched → Pricing Engine calculates split fares
+6. Scheduler updates navigation for Driver with new stops
+7. All parties notified: "Picking up another rider, +3 min"
 ''',
     'icons': [
       _createIcon(
@@ -932,10 +1159,10 @@ Everyone wins except traffic.
         id: 'Rider B',
       ),
       _createIcon('API Gateway', 'Networking', 200, 375),
-      _createIcon('Pool Matching Service', 'Application Services', 400, 375),
-      _createIcon('Route Optimizer', 'Data Processing', 600, 250),
-      _createIcon('Fare Splitter', 'Data Processing', 600, 500),
-      _createIcon('Real-time Coordinator', 'Application Services', 800, 375),
+      _createIcon('Matching Engine', 'Application Services', 400, 375),
+      _createIcon('Map Routing', 'Data Processing', 600, 250),
+      _createIcon('Pricing Engine', 'Data Processing', 600, 500),
+      _createIcon('Scheduler', 'Application Services', 800, 375),
       _createIcon(
         'Mobile Client',
         'Client & Interface',
@@ -1042,15 +1269,44 @@ Events per second       1 million+
 Data stored             Petabytes
 Models in production    100+
 ```
+
+### Icons Explained
+
+**Metrics Collector** - Event Collector that ingests all platform events: app opens, rides, ratings, payments.
+
+**Message Queue** - High-throughput streaming (Kafka) that handles millions of events per second durably.
+
+**Stream Processor** - Real-time analysis for live metrics: current demand, active drivers, system health.
+
+**Batch Processor** - Nightly jobs for historical analysis: demand patterns, market performance, financials.
+
+**Data Warehouse** - Feature Store that holds processed ML features consistently across training and serving.
+
+**ML Model (Training)** - Training Pipeline that builds models for demand forecasting, ETA, fraud detection.
+
+**ML Model (Serving)** - Model Server that serves predictions in real-time with <10ms latency.
+
+**Data Warehouse (History)** - Stores all historical data for compliance, analytics, and model training.
+
+### How They Work Together
+
+1. Every platform action → Metrics Collector captures event
+2. Events published to Message Queue for durable streaming
+3. Stream Processor provides real-time dashboards and metrics
+4. Batch Processor runs nightly for deep historical analysis
+5. Both feed processed features into Data Warehouse (Feature Store)
+6. ML Model (Training) builds models using feature store data
+7. Trained models deployed to ML Model (Serving) for real-time predictions
+8. Historical data stored in Data Warehouse (History) for compliance
 ''',
     'icons': [
-      _createIcon('Event Collector', 'Data Processing', 50, 350),
+      _createIcon('Metrics Collector', 'Data Processing', 50, 350),
       _createIcon('Message Queue', 'Message Systems', 250, 350),
       _createIcon('Stream Processor', 'Data Processing', 450, 250),
       _createIcon('Batch Processor', 'Data Processing', 450, 450),
-      _createIcon('Feature Store', 'Database & Storage', 650, 350),
-      _createIcon('ML Pipeline', 'Data Processing', 850, 250),
-      _createIcon('Model Server', 'Application Services', 850, 450),
+      _createIcon('Data Warehouse', 'Database & Storage', 650, 350),
+      _createIcon('ML Model', 'Data Processing', 850, 250),
+      _createIcon('ML Model', 'Application Services', 850, 450),
       _createIcon('Data Warehouse', 'Database & Storage', 650, 550),
     ],
     'connections': [
@@ -1127,19 +1383,57 @@ Microservices              4,000+
 3. **Scalability**: Handle 10x spikes gracefully
 4. **Safety**: Never compromise on safety
 5. **Fairness**: Balance rider and driver needs
+
+### Icons Explained
+
+**Mobile Client (Rider)** - Rider's phone app for requesting rides, tracking drivers, and paying.
+
+**Mobile Client (Driver)** - Driver's phone app for accepting rides, navigation, and earnings.
+
+**Global Load Balancer** - Distributes traffic across data centers worldwide for reliability.
+
+**API Gateway** - Single entry point that routes all requests to appropriate microservices.
+
+**Microservice** - Core Ride Service managing the complete ride lifecycle.
+
+**Location Service** - Real-time GPS tracking for drivers and active rides.
+
+**Matching Engine** - Algorithm that pairs riders with optimal drivers instantly.
+
+**Payment Gateway** - Handles all payment processing, fare calculation, and driver payouts.
+
+**Map Routing** - Navigation and ETA calculation with real-time traffic.
+
+**Fraud Detection** - Safety monitoring, anomaly detection, and fraud prevention.
+
+**Redis Cache** - Fast caching for driver positions, surge prices, and hot data.
+
+**SQL Database** - Persistent storage for rides, users, payments, and history.
+
+**Analytics Engine** - ML-powered insights for demand prediction and platform optimization.
+
+### How They Work Together
+
+1. Rider/Driver apps connect via Global Load Balancer → API Gateway
+2. Ride requests → Microservice → Matching Engine finds driver
+3. Location Service tracks positions, cached in Redis Cache
+4. Map Routing provides navigation, Payment Gateway handles money
+5. Fraud Detection monitors for safety issues throughout
+6. All data stored in SQL Database, analyzed by Analytics Engine
+7. Result: Seamless ride experience at massive scale
 ''',
     'icons': [
       _createIcon('Mobile Client', 'Client & Interface', 50, 200, id: 'Rider'),
       _createIcon('Mobile Client', 'Client & Interface', 50, 350, id: 'Driver'),
       _createIcon('Global Load Balancer', 'Networking', 200, 275),
       _createIcon('API Gateway', 'Networking', 350, 275),
-      _createIcon('Ride Service', 'Application Services', 500, 175),
+      _createIcon('Microservice', 'Application Services', 500, 175),
       _createIcon('Location Service', 'Application Services', 500, 275),
-      _createIcon('Matching Service', 'Application Services', 500, 375),
-      _createIcon('Payment Service', 'Application Services', 700, 175),
-      _createIcon('Routing Engine', 'Data Processing', 700, 275),
-      _createIcon('Safety Service', 'Security,Monitoring', 700, 375),
-      _createIcon('Redis', 'Caching,Performance', 900, 225),
+      _createIcon('Matching Engine', 'Application Services', 500, 375),
+      _createIcon('Payment Gateway', 'Application Services', 700, 175),
+      _createIcon('Map Routing', 'Data Processing', 700, 275),
+      _createIcon('Fraud Detection', 'Security,Monitoring', 700, 375),
+      _createIcon('Redis Cache', 'Caching,Performance', 900, 225),
       _createIcon('SQL Database', 'Database & Storage', 900, 375),
       _createIcon('Analytics Engine', 'Data Processing', 1100, 300),
     ],

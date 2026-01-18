@@ -94,14 +94,37 @@ Total latency: ~5-10 seconds
 ```
 
 This delay is why chat messages seem "behind" the video.
+
+### Icons Explained
+
+**User** - The broadcaster (streamer) capturing and sending video from their computer.
+
+**Video Ingest** - RTMP Ingest Server that receives the raw video stream from broadcaster software like OBS.
+
+**Stream Management** - Media Server that transcodes video into multiple quality levels and packages it for web delivery.
+
+**CDN** - Content Delivery Network that caches and distributes video segments to viewers worldwide.
+
+**Web Browser** - Desktop viewer watching the stream in a browser-based player.
+
+**Mobile Client** - Phone/tablet viewer watching via the mobile app.
+
+### How They Work Together
+
+1. User (Broadcaster) sends video via RTMP to Video Ingest server
+2. Video Ingest passes raw video to Stream Management
+3. Stream Management transcodes into multiple qualities (1080p, 720p, 480p)
+4. Stream Management creates HLS/DASH segments for web delivery
+5. CDN caches segments at edge locations worldwide
+6. Web Browser and Mobile Client fetch segments from nearest CDN
 ''',
     'icons': [
-      _createIcon('Broadcaster', 'Client & Interface', 50, 350),
-      _createIcon('RTMP Ingest', 'Networking', 250, 350),
-      _createIcon('Media Server', 'Application Services', 450, 350),
+      _createIcon('User', 'Client & Interface', 50, 350),
+      _createIcon('Video Ingest', 'Networking', 250, 350),
+      _createIcon('Stream Management', 'Application Services', 450, 350),
       _createIcon('CDN', 'Networking', 650, 350),
-      _createIcon('Web Viewer', 'Client & Interface', 850, 250),
-      _createIcon('Mobile Viewer', 'Client & Interface', 850, 450),
+      _createIcon('Web Browser', 'Client & Interface', 850, 250),
+      _createIcon('Mobile Client', 'Client & Interface', 850, 450),
     ],
     'connections': [
       _createConnection(0, 1, label: 'RTMP Push'),
@@ -173,24 +196,45 @@ Large platforms use multiple CDN providers (Cloudflare, Akamai, Fastly). If one 
 - 200 ingest servers, 2,000 transcoders
 - All auto-scaled based on demand
 ```
+
+### Icons Explained
+
+**User (Broadcaster1 & Broadcaster2)** - Multiple streamers broadcasting simultaneously from different locations.
+
+**Global Load Balancer** - Ingest Router that assigns each broadcaster to the nearest, least-loaded ingest server.
+
+**Video Ingest (Ingest1 & Ingest2)** - Cluster of RTMP ingest servers handling different broadcasters.
+
+**Stream Management** - Transcoding Cluster that processes all incoming streams in parallel.
+
+**Redis Cache** - Real-time metadata storage for stream status, viewer counts, and health.
+
+**Object Storage** - Origin Servers storing all video segments as the source for CDNs.
+
+**CDN** - Multi-CDN setup (Cloudflare, Akamai, Fastly) for redundant global delivery.
+
+**Web Browser** - Viewers watching streams from any of the broadcasters.
+
+### How They Work Together
+
+1. Multiple broadcasters connect → Global Load Balancer routes each to nearest server
+2. Video Ingest servers handle their assigned streams
+3. All streams fed to Stream Management (transcoding cluster)
+4. Metadata (who's live, viewer count) stored in Redis Cache
+5. Video segments stored in Object Storage (origin)
+6. CDN pulls from Object Storage and delivers to Web Browser viewers
 ''',
     'icons': [
-      _createIcon('Broadcaster', 'Client & Interface', 50, 250),
-      _createIcon(
-        'Broadcaster',
-        'Client & Interface',
-        50,
-        450,
-        id: 'Broadcaster2',
-      ),
+      _createIcon('User', 'Client & Interface', 50, 250),
+      _createIcon('User', 'Client & Interface', 50, 450, id: 'Broadcaster2'),
       _createIcon('Global Load Balancer', 'Networking', 200, 350),
-      _createIcon('RTMP Ingest', 'Networking', 400, 250, id: 'Ingest1'),
-      _createIcon('RTMP Ingest', 'Networking', 400, 450, id: 'Ingest2'),
-      _createIcon('Media Server', 'Application Services', 600, 350),
-      _createIcon('Redis', 'Caching,Performance', 600, 550),
-      _createIcon('Origin Server', 'Database & Storage', 800, 250),
+      _createIcon('Video Ingest', 'Networking', 400, 250, id: 'Ingest1'),
+      _createIcon('Video Ingest', 'Networking', 400, 450, id: 'Ingest2'),
+      _createIcon('Stream Management', 'Application Services', 600, 350),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 550),
+      _createIcon('Object Storage', 'Database & Storage', 800, 250),
       _createIcon('CDN', 'Networking', 800, 450),
-      _createIcon('Web Viewer', 'Client & Interface', 1000, 350),
+      _createIcon('Web Browser', 'Client & Interface', 1000, 350),
     ],
     'connections': [
       _createConnection(0, 2, label: 'Connect'),
@@ -256,17 +300,46 @@ WebRTC direct:      0.1-0.5 second
 - WebRTC: Sub-second latency, but limited to ~1000 viewers per SFU
 - LL-HLS: 2-3 second latency, but scales to millions easily
 - Hybrid approach uses both depending on the use case
+
+### Icons Explained
+
+**User** - Broadcaster streaming with sub-second latency requirements.
+
+**WebSocket Server (WebRTC)** - WebRTC Gateway for ultra-low-latency video directly from broadcaster.
+
+**Video Ingest** - Traditional RTMP ingest for fallback and LL-HLS processing.
+
+**Stream Management (SFU)** - Selective Forwarding Unit that routes WebRTC without re-encoding.
+
+**Stream Management (LL-HLS)** - Low-Latency HLS Server for viewers who can't use WebRTC.
+
+**Edge Server** - Servers in every major city providing minimal network hops for viewers.
+
+**CDN** - Traditional CDN for LL-HLS segment delivery as fallback.
+
+**WebSocket Server (Chat)** - Real-time chat synchronized with sub-second video.
+
+**Web Browser** - Viewer receiving video via WebRTC (fastest) or LL-HLS (fallback).
+
+### How They Work Together
+
+1. User broadcasts → WebSocket Server (WebRTC) for fastest path
+2. User also sends via Video Ingest for LL-HLS fallback
+3. SFU forwards WebRTC to Edge Servers without re-encoding
+4. LL-HLS Server processes for non-WebRTC viewers via CDN
+5. Chat messages via WebSocket Server (Chat) stay synchronized
+6. Web Browser uses WebRTC if available, LL-HLS as fallback
 ''',
     'icons': [
-      _createIcon('Broadcaster', 'Client & Interface', 50, 350),
-      _createIcon('WebRTC Gateway', 'Networking', 250, 250),
-      _createIcon('RTMP Ingest', 'Networking', 250, 450),
-      _createIcon('SFU Server', 'Application Services', 450, 250),
-      _createIcon('Media Server', 'Application Services', 450, 450),
+      _createIcon('User', 'Client & Interface', 50, 350),
+      _createIcon('WebSocket Server', 'Networking', 250, 250),
+      _createIcon('Video Ingest', 'Networking', 250, 450),
+      _createIcon('Stream Management', 'Application Services', 450, 250),
+      _createIcon('Stream Management', 'Application Services', 450, 450),
       _createIcon('Edge Server', 'Networking', 650, 250),
       _createIcon('CDN', 'Networking', 650, 450),
-      _createIcon('WebSocket Gateway', 'Networking', 450, 600),
-      _createIcon('Web Viewer', 'Client & Interface', 850, 350),
+      _createIcon('WebSocket Server', 'Networking', 450, 600),
+      _createIcon('Web Browser', 'Client & Interface', 850, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'WebRTC'),
@@ -352,15 +425,44 @@ Total: ~100ms from send to see
 2. **Mod Actions**: Trusted users can timeout/ban
 3. **Streamer Controls**: Configure chat settings
 4. **Appeals**: Users can request review of bans
+
+### Icons Explained
+
+**Web Browser** - Desktop viewer sending chat messages and viewing the stream.
+
+**Mobile Client** - Phone viewer participating in chat via the mobile app.
+
+**WebSocket Server** - Chat Gateway that maintains persistent connections with all chatters.
+
+**Chat Service** - Core chat logic that processes, routes, and stores messages.
+
+**Content Moderation** - AI-powered service that filters spam, profanity, and toxic content.
+
+**Message Queue** - Pub/Sub system that broadcasts approved messages to all viewers in the room.
+
+**Event Stream** - Events Service handling donations, subscriptions, and special alerts.
+
+**Payment Gateway** - Processes monetary transactions for donations and tips.
+
+**NoSQL Database** - Message Store for chat history and VOD replay.
+
+### How They Work Together
+
+1. Viewer types message → WebSocket Server receives it
+2. Chat Service sends to Content Moderation for filtering
+3. If approved → Message Queue broadcasts to all viewers
+4. WebSocket Server delivers to everyone watching (~100ms total)
+5. Special actions (donations) → Event Stream → Payment Gateway
+6. All messages stored in NoSQL Database for VOD chat replay
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 300),
-      _createIcon('Mobile Viewer', 'Client & Interface', 50, 450),
-      _createIcon('WebSocket Gateway', 'Networking', 250, 375),
+      _createIcon('Web Browser', 'Client & Interface', 50, 300),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 450),
+      _createIcon('WebSocket Server', 'Networking', 250, 375),
       _createIcon('Chat Service', 'Application Services', 450, 300),
-      _createIcon('Moderation Service', 'Security,Monitoring', 450, 475),
-      _createIcon('Pub/Sub System', 'Message Systems', 650, 300),
-      _createIcon('Events Service', 'Application Services', 650, 475),
+      _createIcon('Content Moderation', 'Security,Monitoring', 450, 475),
+      _createIcon('Message Queue', 'Message Systems', 650, 300),
+      _createIcon('Event Stream', 'Application Services', 650, 475),
       _createIcon('Payment Gateway', 'Networking', 850, 475),
       _createIcon('NoSQL Database', 'Database & Storage', 850, 300),
     ],
@@ -448,28 +550,55 @@ A viewer on fiber internet (100 Mbps) wants 1080p60.
 A viewer on mobile data (5 Mbps) needs 720p30.
 A viewer in a subway (unstable) needs 360p that buffers ahead.
 Without ABR, only one group would be happy.
+
+### Icons Explained
+
+**User** - Broadcaster sending raw video (typically 1080p60 @ 6 Mbps).
+
+**Video Ingest** - RTMP Ingest Server receiving the raw video stream.
+
+**Video Transcoding (1080p, 720p, 480p)** - Transcoding Farm with parallel encoders creating multiple quality levels.
+
+**Video Processing** - Segmenter that cuts video into small chunks for HTTP streaming.
+
+**Thumbnail Generator** - Creates preview images captured every few seconds.
+
+**Object Storage** - Origin Server storing all video segments and thumbnails.
+
+**CDN** - Distributes all qualities to viewers who request them.
+
+### How They Work Together
+
+1. User sends 1080p60 video → Video Ingest receives
+2. Video Ingest fans out to multiple Video Transcoding workers
+3. Each transcoder creates one quality level (1080p, 720p, 480p)
+4. All transcoded streams → Video Processing (Segmenter)
+5. Segmenter creates 2-6 second chunks + manifest files
+6. Thumbnail Generator captures preview images
+7. All segments/thumbnails → Object Storage
+8. CDN delivers to viewers with adaptive bitrate selection
 ''',
     'icons': [
-      _createIcon('Broadcaster', 'Client & Interface', 50, 350),
-      _createIcon('RTMP Ingest', 'Networking', 200, 350),
-      _createIcon('Transcoding Cluster', 'Application Services', 400, 200),
+      _createIcon('User', 'Client & Interface', 50, 350),
+      _createIcon('Video Ingest', 'Networking', 200, 350),
+      _createIcon('Video Transcoding', 'Application Services', 400, 200),
       _createIcon(
-        'Transcoding Cluster',
+        'Video Transcoding',
         'Application Services',
         400,
         350,
         id: 'Transcoder2',
       ),
       _createIcon(
-        'Transcoding Cluster',
+        'Video Transcoding',
         'Application Services',
         400,
         500,
         id: 'Transcoder3',
       ),
-      _createIcon('Segmenter', 'Data Processing', 600, 350),
+      _createIcon('Video Processing', 'Data Processing', 600, 350),
       _createIcon('Thumbnail Generator', 'Data Processing', 600, 550),
-      _createIcon('Origin Server', 'Database & Storage', 800, 350),
+      _createIcon('Object Storage', 'Database & Storage', 800, 350),
       _createIcon('CDN', 'Networking', 1000, 350),
     ],
     'connections': [
@@ -562,17 +691,48 @@ New users have no history. Solutions:
 2. Show trending/popular content
 3. Build profile from first few views
 4. Use demographic defaults
+
+### Icons Explained
+
+**Web Browser** - Viewer browsing to discover new streams to watch.
+
+**API Gateway** - Routes browse, search, and category requests to appropriate services.
+
+**Search Engine (Browse)** - Browse API that lists live streams sorted by viewer count.
+
+**Search Engine (Search)** - Full-text Search Service for finding specific content.
+
+**Configuration Service** - Category Service organizing streams by games and topics.
+
+**Recommendation Engine** - ML-powered personalization based on viewing history.
+
+**Search Engine (Index)** - Search Index storing stream titles, tags, and descriptions.
+
+**Redis Cache** - Caches user profiles and viewing history for fast recommendations.
+
+**NoSQL Database** - Stores user preferences and complete viewing history.
+
+**Analytics Engine** - Tracks popularity signals (viewer growth, chat activity) for trending.
+
+### How They Work Together
+
+1. Viewer opens app → API Gateway routes to Browse API
+2. Search requests → Search Engine queries Search Index
+3. Category browsing → Configuration Service filters by topic
+4. Recommendation Engine personalizes using Redis Cache (user profile)
+5. Analytics Engine feeds popularity signals to recommendations
+6. All data backed by NoSQL Database for persistence
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Browse Service', 'Application Services', 400, 200),
-      _createIcon('Search Service', 'Application Services', 400, 350),
-      _createIcon('Category Service', 'Application Services', 400, 500),
+      _createIcon('Search Engine', 'Application Services', 400, 200),
+      _createIcon('Search Engine', 'Application Services', 400, 350),
+      _createIcon('Configuration Service', 'Application Services', 400, 500),
       _createIcon('Recommendation Engine', 'Data Processing', 600, 350),
-      _createIcon('Search Index', 'Database & Storage', 600, 200),
-      _createIcon('Redis', 'Caching,Performance', 600, 500),
-      _createIcon('User Profile Store', 'Database & Storage', 800, 350),
+      _createIcon('Search Engine', 'Database & Storage', 600, 200),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 500),
+      _createIcon('NoSQL Database', 'Database & Storage', 800, 350),
       _createIcon('Analytics Engine', 'Data Processing', 800, 500),
     ],
     'connections': [
@@ -667,16 +827,46 @@ Tier 3: \$24.99/month - Premium badge
 Gift subs: Buy for others
 Prime: Free monthly sub for Prime members
 ```
+
+### Icons Explained
+
+**Web Browser** - Viewer making purchases (subscriptions, donations).
+
+**API Gateway** - Routes monetization requests to appropriate services.
+
+**Payment Gateway (Subscription)** - Subscription Service handling recurring monthly payments.
+
+**Payment Gateway (Donation)** - Donation Service processing one-time tips with messages.
+
+**Analytics Service** - Ad Service inserting commercials for non-subscribers.
+
+**Payment Gateway (External)** - External payment processor (Stripe, PayPal) charging cards.
+
+**Analytics Engine** - Revenue Calculator that splits earnings between platform and streamer.
+
+**Payment Gateway (Payout)** - Payout Service transferring money to streamer bank accounts.
+
+**SQL Database** - Stores all transaction records, subscription status, and revenue data.
+
+### How They Work Together
+
+1. Viewer subscribes → API Gateway → Payment Gateway (Subscription)
+2. Viewer donates → API Gateway → Payment Gateway (Donation)
+3. Both charge via Payment Gateway (External)
+4. Non-subscribers see ads via Analytics Service
+5. All revenue → Analytics Engine calculates splits
+6. Analytics Engine → Payment Gateway (Payout) for monthly payouts
+7. All transactions recorded in SQL Database
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Subscription Service', 'Application Services', 400, 200),
-      _createIcon('Donation Service', 'Application Services', 400, 350),
-      _createIcon('Ad Service', 'Application Services', 400, 500),
+      _createIcon('Payment Gateway', 'Application Services', 400, 200),
+      _createIcon('Payment Gateway', 'Application Services', 400, 350),
+      _createIcon('Analytics Service', 'Application Services', 400, 500),
       _createIcon('Payment Gateway', 'Networking', 600, 275),
-      _createIcon('Revenue Calculator', 'Data Processing', 600, 425),
-      _createIcon('Payout Service', 'Application Services', 800, 350),
+      _createIcon('Analytics Engine', 'Data Processing', 600, 425),
+      _createIcon('Payment Gateway', 'Application Services', 800, 350),
       _createIcon('SQL Database', 'Database & Storage', 800, 550),
     ],
     'connections': [
@@ -765,17 +955,47 @@ Archive  Hours          \$0.004    Rarely watched
 5. New viewers discover streamer
 6. Come back for next stream
 ```
+
+### Icons Explained
+
+**User** - Broadcaster whose stream is being recorded and clipped.
+
+**Stream Management** - Live stream processing that also saves for recording.
+
+**Content Storage** - Recording Service capturing all video segments during the stream.
+
+**Video Processing (Clip)** - Clip Service extracting short highlights on demand.
+
+**Video Processing (VOD)** - VOD Processor encoding recorded streams with high quality.
+
+**Object Storage** - Stores all VOD files and clips with tiered storage policies.
+
+**NoSQL Database** - Metadata Store for VOD info, timestamps, and chat sync.
+
+**CDN** - Distributes VODs and clips to viewers worldwide.
+
+**Web Browser** - Viewer watching VODs or clips after the live stream ends.
+
+### How They Work Together
+
+1. User streams → Stream Management processes live video
+2. Content Storage records in parallel during stream
+3. Viewer requests clip → Video Processing (Clip) extracts segment
+4. Stream ends → Video Processing (VOD) creates high-quality VOD
+5. Everything stored in Object Storage with lifecycle policies
+6. Metadata (title, duration, chat sync) in NoSQL Database
+7. CDN delivers VODs and clips to Web Browser viewers
 ''',
     'icons': [
-      _createIcon('Broadcaster', 'Client & Interface', 50, 350),
-      _createIcon('Media Server', 'Application Services', 250, 350),
-      _createIcon('Recording Service', 'Application Services', 450, 250),
-      _createIcon('Clip Service', 'Application Services', 450, 450),
-      _createIcon('VOD Processor', 'Data Processing', 650, 250),
+      _createIcon('User', 'Client & Interface', 50, 350),
+      _createIcon('Stream Management', 'Application Services', 250, 350),
+      _createIcon('Content Storage', 'Application Services', 450, 250),
+      _createIcon('Video Processing', 'Application Services', 450, 450),
+      _createIcon('Video Processing', 'Data Processing', 650, 250),
       _createIcon('Object Storage', 'Database & Storage', 650, 450),
-      _createIcon('Metadata Store', 'Database & Storage', 850, 350),
+      _createIcon('NoSQL Database', 'Database & Storage', 850, 350),
       _createIcon('CDN', 'Networking', 1050, 350),
-      _createIcon('Web Viewer', 'Client & Interface', 1250, 350),
+      _createIcon('Web Browser', 'Client & Interface', 1250, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Live Stream'),
@@ -878,17 +1098,47 @@ Key Performance Indicators:
 - Revenue per user: \$2.47
 - Streamer payout: \$1.2B/year
 ```
+
+### Icons Explained
+
+**Web Browser** - Viewer generating events by watching, chatting, and interacting.
+
+**User** - Broadcaster generating stream events and content metrics.
+
+**Metrics Collector** - Event Collector ingesting millions of events per second.
+
+**Message Queue** - High-throughput streaming (Kafka) for durable event delivery.
+
+**Stream Processor** - Real-time analysis for live dashboards and current metrics.
+
+**Batch Processor** - Nightly jobs for deep analysis like retention curves and churn.
+
+**Data Warehouse** - Historical storage for all processed data and SQL queries.
+
+**Analytics Service** - Dashboard Service visualizing metrics for streamers and platform.
+
+**ML Model** - Machine learning pipeline for predictions and recommendations.
+
+### How They Work Together
+
+1. Every action from Web Browser and User → Metrics Collector
+2. Events published to Message Queue for durability
+3. Stream Processor provides real-time metrics (current viewers, revenue today)
+4. Batch Processor runs overnight for complex analysis
+5. Both write to Data Warehouse for historical storage
+6. Analytics Service displays charts and dashboards
+7. ML Model trains on Data Warehouse data for predictions
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 250),
-      _createIcon('Broadcaster', 'Client & Interface', 50, 450),
-      _createIcon('Event Collector', 'Data Processing', 250, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 250),
+      _createIcon('User', 'Client & Interface', 50, 450),
+      _createIcon('Metrics Collector', 'Data Processing', 250, 350),
       _createIcon('Message Queue', 'Message Systems', 450, 350),
       _createIcon('Stream Processor', 'Data Processing', 650, 250),
       _createIcon('Batch Processor', 'Data Processing', 650, 450),
       _createIcon('Data Warehouse', 'Database & Storage', 850, 350),
-      _createIcon('Dashboard Service', 'Application Services', 1050, 250),
-      _createIcon('ML Pipeline', 'Data Processing', 1050, 450),
+      _createIcon('Analytics Service', 'Application Services', 1050, 250),
+      _createIcon('ML Model', 'Data Processing', 1050, 450),
     ],
     'connections': [
       _createConnection(0, 2, label: 'View Events'),
@@ -969,22 +1219,63 @@ Edge locations: 200+
 3. **Graceful Degradation**: If one component fails, others continue
 4. **Real-time Priority**: Video and chat must be instant
 5. **Cost Optimization**: Balance quality vs. infrastructure cost
+
+### Icons Explained
+
+**User** - Broadcaster starting their live stream.
+
+**Global Load Balancer** - Routes broadcaster to nearest, least-loaded ingest server.
+
+**Video Ingest** - RTMP Ingest receiving video for traditional streaming path.
+
+**WebSocket Server (WebRTC)** - WebRTC Gateway for ultra-low-latency streaming.
+
+**Stream Management** - Media Server transcoding and packaging video.
+
+**CDN** - Global distribution of video segments to viewers.
+
+**WebSocket Server (Real-time)** - Handles chat and real-time interactions.
+
+**Chat Service** - Processes chat messages with moderation.
+
+**Search Engine** - Discovery Service for finding and recommending streams.
+
+**Payment Gateway** - Handles subscriptions, donations, and monetization.
+
+**Video Streaming** - VOD/Clip Service for recording and highlights.
+
+**Analytics Engine** - Collects and analyzes all platform events.
+
+**Web Browser** - Desktop viewer watching streams.
+
+**Mobile Client** - Mobile viewer watching via app.
+
+### How They Work Together
+
+1. User connects via Global Load Balancer
+2. RTMP → Video Ingest → Stream Management (transcode) → CDN
+3. WebRTC → WebSocket Server → Stream Management (forward) → faster delivery
+4. WebSocket Server (Real-time) + Chat Service handle interaction
+5. Search Engine enables discovery, Payment Gateway handles money
+6. Video Streaming records for VODs and clips
+7. Analytics Engine tracks everything for insights
+8. Web Browser and Mobile Client receive video from CDN
 ''',
     'icons': [
-      _createIcon('Broadcaster', 'Client & Interface', 50, 300),
+      _createIcon('User', 'Client & Interface', 50, 300),
       _createIcon('Global Load Balancer', 'Networking', 200, 300),
-      _createIcon('RTMP Ingest', 'Networking', 350, 200),
-      _createIcon('WebRTC Gateway', 'Networking', 350, 400),
-      _createIcon('Media Server', 'Application Services', 500, 300),
+      _createIcon('Video Ingest', 'Networking', 350, 200),
+      _createIcon('WebSocket Server', 'Networking', 350, 400),
+      _createIcon('Stream Management', 'Application Services', 500, 300),
       _createIcon('CDN', 'Networking', 650, 200),
-      _createIcon('WebSocket Gateway', 'Networking', 650, 400),
+      _createIcon('WebSocket Server', 'Networking', 650, 400),
       _createIcon('Chat Service', 'Application Services', 800, 400),
-      _createIcon('Discovery Service', 'Application Services', 800, 250),
-      _createIcon('Subscription Service', 'Application Services', 950, 350),
-      _createIcon('VOD Service', 'Application Services', 950, 500),
+      _createIcon('Search Engine', 'Application Services', 800, 250),
+      _createIcon('Payment Gateway', 'Application Services', 950, 350),
+      _createIcon('Video Streaming', 'Application Services', 950, 500),
       _createIcon('Analytics Engine', 'Data Processing', 1100, 350),
-      _createIcon('Web Viewer', 'Client & Interface', 1100, 200),
-      _createIcon('Mobile Viewer', 'Client & Interface', 1100, 500),
+      _createIcon('Web Browser', 'Client & Interface', 1100, 200),
+      _createIcon('Mobile Client', 'Client & Interface', 1100, 500),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Connect'),

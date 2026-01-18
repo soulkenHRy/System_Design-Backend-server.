@@ -1107,8 +1107,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       });
     }
 
-    // Add persistent bots to the leaderboard
-    // Try to fetch online leaderboard first, fall back to bots if unavailable
+    // Add persistent bots to the leaderboard (always show bots for a richer experience)
+    final bots = await _getPersistentBots();
+    leaderboard.addAll(bots);
+
+    // Also fetch and add online users from the backend
     final onlineUsers = await _fetchOnlineLeaderboard(
       prefs,
       userCountry,
@@ -1118,12 +1121,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
 
     if (onlineUsers != null && onlineUsers.isNotEmpty) {
-      // Use online leaderboard data
+      // Add online users to compete alongside bots
       leaderboard.addAll(onlineUsers);
-    } else {
-      // Fall back to persistent bots (offline mode)
-      final bots = await _getPersistentBots();
-      leaderboard.addAll(bots);
     }
 
     // Sort by score (highest first) and add rankings
@@ -1902,524 +1901,611 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
+          // Cozy pixel-like gradient background
           gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              Color.fromARGB(255, 82, 0, 105),
-              Color.fromARGB(255, 6, 4, 4),
+              Color(0xFF2C1810), // Dark brown
+              Color(0xFF3D2817), // Medium brown
+              Color(0xFF4A3420), // Light brown
+              Color(0xFF5C4129), // Tan
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            stops: [0.0, 0.3, 0.7, 1.0],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Global Leaderboard',
-                        style: GoogleFonts.saira(
-                          textStyle: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Icon(Icons.emoji_events, color: Colors.amber, size: 28),
-                  ],
-                ),
-              ),
-
-              // Server Name Display - only show when online and server name exists
-              FutureBuilder<bool>(
-                future: _hasInternetConnection(),
-                builder: (context, snapshot) {
-                  final hasInternet = snapshot.data ?? false;
-
-                  if (!hasInternet || _serverName.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.blue.withOpacity(0.2),
-                            Colors.purple.withOpacity(0.2),
-                          ],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.dns, color: Colors.blue, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Connected to Server:',
-                                  style: GoogleFonts.saira(
-                                    textStyle: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  _serverName,
-                                  style: GoogleFonts.saira(
-                                    textStyle: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.green.withOpacity(0.4),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.green,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'ONLINE',
-                                  style: GoogleFonts.saira(
-                                    textStyle: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Stats Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Stack(
+          children: [
+            // Cozy pixel-style stars/dots background
+            ...List.generate(40, (index) {
+              final random = Random(index);
+              return Positioned(
+                left: random.nextDouble() * screenWidth,
+                top: random.nextDouble() * screenHeight,
                 child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
+                  width: 4,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: [
-                          Text('�', style: const TextStyle(fontSize: 24)),
-                          const SizedBox(height: 4),
-                          Text(
-                            'AI Based',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          Text(
-                            '$_totalSystems',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Systems',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          Text(
-                            '$_totalScore',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.amber,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Total Score',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    color: const Color(0xFFFFE4B5).withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Leaderboard List
-              Expanded(
-                child: FutureBuilder<Map<String, bool>>(
-                  future: _getRequirements(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      );
-                    }
-
-                    final requirements =
-                        snapshot.data ??
-                        {'hasInternet': false, 'hasDesignedSystem': false};
-                    final hasInternet = requirements['hasInternet'] ?? false;
-                    final hasDesignedSystem =
-                        requirements['hasDesignedSystem'] ?? false;
-
-                    if (!hasInternet || !hasDesignedSystem) {
-                      return Center(
-                        child: Container(
-                          margin: const EdgeInsets.all(20),
-                          padding: const EdgeInsets.all(24),
+              );
+            }),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Container(
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
+                            color: const Color(0xFF4A3420),
+                            borderRadius: BorderRadius.circular(0),
                             border: Border.all(
-                              color: Colors.red.withOpacity(0.3),
+                              color: const Color(0xFFFFE4B5),
                               width: 2,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 0,
+                                offset: const Offset(2, 2),
+                              ),
+                            ],
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.arrow_back_ios,
+                                  color: Color(0xFFFFE4B5),
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Global Leaderboard',
+                            style: GoogleFonts.saira(
+                              textStyle: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFFFE4B5),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                        ),
+                        Icon(Icons.emoji_events, color: Colors.amber, size: 28),
+                      ],
+                    ),
+                  ),
+
+                  // Server Name Display - only show when online and server name exists
+                  FutureBuilder<bool>(
+                    future: _hasInternetConnection(),
+                    builder: (context, snapshot) {
+                      final hasInternet = snapshot.data ?? false;
+
+                      if (!hasInternet || _serverName.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3D2817),
+                            borderRadius: BorderRadius.circular(0),
+                            border: Border.all(
+                              color: const Color(0xFFFFE4B5).withOpacity(0.3),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 0,
+                                offset: const Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
                             children: [
                               Icon(
-                                Icons.warning_amber_rounded,
-                                size: 64,
-                                color: Colors.orange,
+                                Icons.dns,
+                                color: const Color(0xFFFFE4B5),
+                                size: 20,
                               ),
-                              const SizedBox(height: 20),
-                              Text(
-                                'Sorry you do not meet one of the following requirement:',
-                                style: GoogleFonts.saira(
-                                  textStyle: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Icon(
-                                    hasInternet
-                                        ? Icons.check_circle
-                                        : Icons.cancel,
-                                    color:
-                                        hasInternet ? Colors.green : Colors.red,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '1) Internet connection',
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Connected to Server:',
                                       style: GoogleFonts.saira(
                                         textStyle: TextStyle(
-                                          fontSize: 16,
-                                          color:
-                                              hasInternet
-                                                  ? Colors.green
-                                                  : Colors.red,
+                                          fontSize: 12,
+                                          color: const Color(
+                                            0xFFFFE4B5,
+                                          ).withOpacity(0.7),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(
-                                    hasDesignedSystem
-                                        ? Icons.check_circle
-                                        : Icons.cancel,
-                                    color:
-                                        hasDesignedSystem
-                                            ? Colors.green
-                                            : Colors.red,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '2) Should have designed at least one system',
+                                    Text(
+                                      _serverName,
                                       style: GoogleFonts.saira(
-                                        textStyle: TextStyle(
+                                        textStyle: const TextStyle(
                                           fontSize: 16,
-                                          color:
-                                              hasDesignedSystem
-                                                  ? Colors.green
-                                                  : Colors.red,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFFFFE4B5),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _isLoading = true;
-                                  });
-                                  _checkRequirementsAndLoad();
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
+                                  ],
                                 ),
-                                child: Text(
-                                  'Check Again',
-                                  style: GoogleFonts.saira(),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(0),
+                                  border: Border.all(
+                                    color: Colors.green.withOpacity(0.4),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.green,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'ONLINE',
+                                      style: GoogleFonts.saira(
+                                        textStyle: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
                       );
-                    }
+                    },
+                  ),
 
-                    return _isLoading
-                        ? const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
-                        )
-                        : Column(
-                          children: [
-                            Expanded(
-                              child: ListView.builder(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0,
+                  const SizedBox(height: 16),
+
+                  // Stats Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3D2817),
+                        borderRadius: BorderRadius.circular(0),
+                        border: Border.all(
+                          color: const Color(0xFFFFE4B5).withOpacity(0.3),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 0,
+                            offset: const Offset(2, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              Text('🤖', style: const TextStyle(fontSize: 24)),
+                              const SizedBox(height: 4),
+                              Text(
+                                'AI Based',
+                                style: GoogleFonts.saira(
+                                  textStyle: TextStyle(
+                                    fontSize: 12,
+                                    color: const Color(
+                                      0xFFFFE4B5,
+                                    ).withOpacity(0.7),
+                                  ),
                                 ),
-                                itemCount:
-                                    _leaderboardData.length > 10
-                                        ? 10
-                                        : _leaderboardData.length,
-                                itemBuilder: (context, index) {
-                                  final user = _leaderboardData[index];
-                                  final isCurrentUser =
-                                      user['isCurrentUser'] ?? false;
-                                  final rank = user['rank'];
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              Text(
+                                '$_totalSystems',
+                                style: GoogleFonts.saira(
+                                  textStyle: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFFE4B5),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Systems',
+                                style: GoogleFonts.saira(
+                                  textStyle: TextStyle(
+                                    fontSize: 12,
+                                    color: const Color(
+                                      0xFFFFE4B5,
+                                    ).withOpacity(0.7),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              Text(
+                                '$_totalScore',
+                                style: GoogleFonts.saira(
+                                  textStyle: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.amber,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Total Score',
+                                style: GoogleFonts.saira(
+                                  textStyle: TextStyle(
+                                    fontSize: 12,
+                                    color: const Color(
+                                      0xFFFFE4B5,
+                                    ).withOpacity(0.7),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight,
-                                        colors:
-                                            isCurrentUser
-                                                ? [
-                                                  const Color(
-                                                    0xFF4CAF50,
-                                                  ).withOpacity(0.3),
-                                                  const Color(
-                                                    0xFF4CAF50,
-                                                  ).withOpacity(0.1),
-                                                ]
-                                                : [
-                                                  Colors.white.withOpacity(
-                                                    0.15,
-                                                  ),
-                                                  Colors.white.withOpacity(
-                                                    0.05,
-                                                  ),
-                                                ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color:
-                                            isCurrentUser
-                                                ? const Color(
-                                                  0xFF4CAF50,
-                                                ).withOpacity(0.5)
-                                                : Colors.white.withOpacity(0.2),
-                                        width: isCurrentUser ? 2 : 1,
+                  const SizedBox(height: 20),
+
+                  // Leaderboard List
+                  Expanded(
+                    child: FutureBuilder<Map<String, bool>>(
+                      future: _getRequirements(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFFFFE4B5),
+                            ),
+                          );
+                        }
+
+                        final requirements =
+                            snapshot.data ??
+                            {'hasInternet': false, 'hasDesignedSystem': false};
+                        final hasInternet =
+                            requirements['hasInternet'] ?? false;
+                        final hasDesignedSystem =
+                            requirements['hasDesignedSystem'] ?? false;
+
+                        if (!hasInternet || !hasDesignedSystem) {
+                          return Center(
+                            child: Container(
+                              margin: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF3D2817),
+                                borderRadius: BorderRadius.circular(0),
+                                border: Border.all(
+                                  color: Colors.red.withOpacity(0.5),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    blurRadius: 0,
+                                    offset: const Offset(3, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 64,
+                                    color: Colors.orange,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'Sorry you do not meet one of the following requirement:',
+                                    style: GoogleFonts.saira(
+                                      textStyle: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFFFE4B5),
                                       ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        // Rank
-                                        Container(
-                                          width: 50,
-                                          height: 50,
-                                          decoration: BoxDecoration(
-                                            color: _getRankColor(
-                                              rank,
-                                            ).withOpacity(0.2),
-                                            borderRadius: BorderRadius.circular(
-                                              25,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        hasInternet
+                                            ? Icons.check_circle
+                                            : Icons.cancel,
+                                        color:
+                                            hasInternet
+                                                ? Colors.green
+                                                : Colors.red,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '1) Internet connection',
+                                          style: GoogleFonts.saira(
+                                            textStyle: TextStyle(
+                                              fontSize: 16,
+                                              color:
+                                                  hasInternet
+                                                      ? Colors.green
+                                                      : Colors.red,
                                             ),
-                                            border: Border.all(
-                                              color: _getRankColor(rank),
-                                              width: 2,
-                                            ),
-                                          ),
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                _getRankIcon(rank),
-                                                color: _getRankColor(rank),
-                                                size: rank <= 3 ? 20 : 16,
-                                              ),
-                                              if (rank <= 3)
-                                                const SizedBox(height: 2),
-                                              Text(
-                                                '#$rank',
-                                                style: GoogleFonts.saira(
-                                                  textStyle: TextStyle(
-                                                    fontSize:
-                                                        rank <= 3 ? 10 : 12,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: _getRankColor(rank),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
                                           ),
                                         ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        hasDesignedSystem
+                                            ? Icons.check_circle
+                                            : Icons.cancel,
+                                        color:
+                                            hasDesignedSystem
+                                                ? Colors.green
+                                                : Colors.red,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '2) Should have designed at least one system',
+                                          style: GoogleFonts.saira(
+                                            textStyle: TextStyle(
+                                              fontSize: 16,
+                                              color:
+                                                  hasDesignedSystem
+                                                      ? Colors.green
+                                                      : Colors.red,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _isLoading = true;
+                                      });
+                                      _checkRequirementsAndLoad();
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: Text(
+                                      'Check Again',
+                                      style: GoogleFonts.saira(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
 
-                                        const SizedBox(width: 16),
+                        return _isLoading
+                            ? const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFFFE4B5),
+                              ),
+                            )
+                            : Column(
+                              children: [
+                                Expanded(
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16.0,
+                                    ),
+                                    itemCount:
+                                        _leaderboardData.length > 10
+                                            ? 10
+                                            : _leaderboardData.length,
+                                    itemBuilder: (context, index) {
+                                      final user = _leaderboardData[index];
+                                      final isCurrentUser =
+                                          user['isCurrentUser'] ?? false;
+                                      final rank = user['rank'];
 
-                                        // User Info
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
+                                      return Container(
+                                        margin: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              isCurrentUser
+                                                  ? const Color(
+                                                    0xFF4CAF50,
+                                                  ).withOpacity(0.2)
+                                                  : const Color(0xFF3D2817),
+                                          borderRadius: BorderRadius.circular(
+                                            0,
+                                          ),
+                                          border: Border.all(
+                                            color:
+                                                isCurrentUser
+                                                    ? const Color(
+                                                      0xFF4CAF50,
+                                                    ).withOpacity(0.5)
+                                                    : const Color(
+                                                      0xFFFFE4B5,
+                                                    ).withOpacity(0.3),
+                                            width: isCurrentUser ? 2 : 1,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                0.5,
+                                              ),
+                                              blurRadius: 0,
+                                              offset: const Offset(2, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            // Rank
+                                            Container(
+                                              width: 50,
+                                              height: 50,
+                                              decoration: BoxDecoration(
+                                                color: _getRankColor(
+                                                  rank,
+                                                ).withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(0),
+                                                border: Border.all(
+                                                  color: _getRankColor(rank),
+                                                  width: 2,
+                                                ),
+                                              ),
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      user['username'],
-                                                      style: GoogleFonts.saira(
-                                                        textStyle: TextStyle(
-                                                          fontSize: 16,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color:
-                                                              isCurrentUser
-                                                                  ? Colors.white
-                                                                  : Colors
-                                                                      .white,
+                                                  Icon(
+                                                    _getRankIcon(rank),
+                                                    color: _getRankColor(rank),
+                                                    size: rank <= 3 ? 20 : 16,
+                                                  ),
+                                                  if (rank <= 3)
+                                                    const SizedBox(height: 2),
+                                                  Text(
+                                                    '#$rank',
+                                                    style: GoogleFonts.saira(
+                                                      textStyle: TextStyle(
+                                                        fontSize:
+                                                            rank <= 3 ? 10 : 12,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: _getRankColor(
+                                                          rank,
                                                         ),
                                                       ),
                                                     ),
                                                   ),
-                                                  if (isCurrentUser)
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
+                                                ],
+                                              ),
+                                            ),
+
+                                            const SizedBox(width: 16),
+
+                                            // User Info
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          user['username'],
+                                                          style: GoogleFonts.saira(
+                                                            textStyle:
+                                                                const TextStyle(
+                                                                  fontSize: 16,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  color: Color(
+                                                                    0xFFFFE4B5,
+                                                                  ),
+                                                                ),
                                                           ),
-                                                      decoration: BoxDecoration(
-                                                        color: const Color(
-                                                          0xFF4CAF50,
                                                         ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
                                                       ),
-                                                      child: Text(
-                                                        'YOU',
-                                                        style: GoogleFonts.saira(
-                                                          textStyle:
-                                                              const TextStyle(
+                                                      if (isCurrentUser)
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 8,
+                                                                vertical: 4,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: const Color(
+                                                              0xFF4CAF50,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  0,
+                                                                ),
+                                                          ),
+                                                          child: Text(
+                                                            'YOU',
+                                                            style: GoogleFonts.saira(
+                                                              textStyle: const TextStyle(
                                                                 fontSize: 10,
                                                                 fontWeight:
                                                                     FontWeight
@@ -2428,115 +2514,125 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                                                                     Colors
                                                                         .white,
                                                               ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        getCountryDisplay(
+                                                          user['country'],
+                                                        ),
+                                                        style: GoogleFonts.saira(
+                                                          textStyle: TextStyle(
+                                                            fontSize: 12,
+                                                            color: const Color(
+                                                              0xFFFFE4B5,
+                                                            ).withOpacity(0.7),
+                                                          ),
                                                         ),
                                                       ),
-                                                    ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  Text(
-                                                    getCountryDisplay(
-                                                      user['country'],
-                                                    ),
-                                                    style: GoogleFonts.saira(
-                                                      textStyle:
-                                                          const TextStyle(
+                                                      const SizedBox(width: 12),
+                                                      Text(
+                                                        '${user['systemsDesigned']} systems',
+                                                        style: GoogleFonts.saira(
+                                                          textStyle: TextStyle(
                                                             fontSize: 12,
-                                                            color:
-                                                                Colors.white70,
+                                                            color: const Color(
+                                                              0xFFFFE4B5,
+                                                            ).withOpacity(0.7),
                                                           ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Text(
-                                                    '${user['systemsDesigned']} systems',
-                                                    style: GoogleFonts.saira(
-                                                      textStyle:
-                                                          const TextStyle(
-                                                            fontSize: 12,
-                                                            color:
-                                                                Colors.white70,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  if (user['averageScore'] >
-                                                      0) ...[
-                                                    const SizedBox(width: 8),
-                                                    Text(
-                                                      'Avg: ${user['averageScore']}',
-                                                      style: GoogleFonts.saira(
-                                                        textStyle:
-                                                            const TextStyle(
-                                                              fontSize: 11,
-                                                              color:
-                                                                  Colors.amber,
-                                                            ),
+                                                        ),
                                                       ),
-                                                    ),
-                                                  ],
+                                                      if (user['averageScore'] >
+                                                          0) ...[
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Text(
+                                                          'Avg: ${user['averageScore']}',
+                                                          style: GoogleFonts.saira(
+                                                            textStyle:
+                                                                const TextStyle(
+                                                                  fontSize: 11,
+                                                                  color:
+                                                                      Colors
+                                                                          .amber,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
                                                 ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        // Score
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              '${user['score']}',
-                                              style: GoogleFonts.saira(
-                                                textStyle: const TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.amber,
-                                                ),
                                               ),
                                             ),
-                                            Text(
-                                              'points',
-                                              style: GoogleFonts.saira(
-                                                textStyle: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.white70,
+
+                                            // Score
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  '${user['score']}',
+                                                  style: GoogleFonts.saira(
+                                                    textStyle: const TextStyle(
+                                                      fontSize: 20,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.amber,
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
+                                                Text(
+                                                  'points',
+                                                  style: GoogleFonts.saira(
+                                                    textStyle: TextStyle(
+                                                      fontSize: 12,
+                                                      color: const Color(
+                                                        0xFFFFE4B5,
+                                                      ).withOpacity(0.7),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            // Show "and X more..." indicator if there are more than 10 entries
-                            if (_leaderboardData.length > 10)
-                              Container(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Text(
-                                  'and ${_leaderboardData.length - 10} more competitors...',
-                                  style: GoogleFonts.saira(
-                                    textStyle: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.white70,
-                                      fontStyle: FontStyle.italic,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                // Show "and X more..." indicator if there are more than 10 entries
+                                if (_leaderboardData.length > 10)
+                                  Container(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Text(
+                                      'and ${_leaderboardData.length - 10} more competitors...',
+                                      style: GoogleFonts.saira(
+                                        textStyle: TextStyle(
+                                          fontSize: 14,
+                                          color: const Color(
+                                            0xFFFFE4B5,
+                                          ).withOpacity(0.7),
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
                                   ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                          ],
-                        );
-                  },
-                ),
+                              ],
+                            );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

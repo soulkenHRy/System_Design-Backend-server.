@@ -12,7 +12,12 @@ import 'design_comparison_service.dart';
 class SystemDesignCanvasScreen extends StatefulWidget {
   final String systemName;
   final Map<String, dynamic>? initialCanvasData;
-  final Function(String question, String notes)? onSubmitDesign;
+  final Function(
+    String question,
+    String notes,
+    CanvasValidationData? canvasData,
+  )?
+  onSubmitDesign;
 
   const SystemDesignCanvasScreen({
     super.key,
@@ -27,7 +32,7 @@ class SystemDesignCanvasScreen extends StatefulWidget {
 }
 
 class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   // Track which categories are expanded
   Set<String> expandedCategories = {};
 
@@ -53,11 +58,20 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
   // Track which icons are connected to each line (by line index)
   Map<int, LineConnection> lineConnections = {};
 
+  // Undo/Redo functionality
+  List<CanvasState> _undoStack = [];
+  List<CanvasState> _redoStack = [];
+  static const int _maxHistorySize =
+      50; // Limit history to prevent memory issues
+
   // ScrollController for horizontal icon list
   late ScrollController _horizontalScrollController;
 
   // Transform controller for zoom functionality
   late TransformationController _transformationController;
+
+  // Animation controller for data flow on green arrows
+  late AnimationController _dataFlowAnimationController;
 
   @override
   void initState() {
@@ -69,6 +83,12 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
     // Initialize controllers
     _horizontalScrollController = ScrollController();
     _transformationController = TransformationController();
+
+    // Initialize data flow animation controller
+    _dataFlowAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(); // Continuously animate
 
     // Always load saved design data when screen opens
     _loadDesign();
@@ -90,6 +110,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
     _saveDesignSync();
     _horizontalScrollController.dispose();
     _transformationController.dispose();
+    _dataFlowAnimationController.dispose();
     super.dispose();
   }
 
@@ -291,6 +312,8 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
       return;
     }
 
+    _saveStateToHistory(); // Save state before deletion
+
     setState(() {
       // Delete selected icons
       if (selectedIcons.isNotEmpty) {
@@ -343,6 +366,302 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
     _saveDesign(); // Save after deletion
   }
 
+  // Show confirmation dialog before clearing everything
+  void _showClearConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1a1a2e),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text(
+                'Clear Canvas',
+                style: GoogleFonts.saira(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to clear all icons and connections?\n\nThis action cannot be undone.',
+            style: GoogleFonts.saira(color: Colors.white70, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.saira(color: Colors.white54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _clearCanvas();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                'Clear All',
+                style: GoogleFonts.saira(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Clear all icons and lines from the canvas
+  void _clearCanvas() {
+    _saveStateToHistory(); // Save state before clearing
+    setState(() {
+      droppedIcons.clear();
+      drawnLines.clear();
+      lineConnections.clear();
+      selectedIcons.clear();
+      selectedLines.clear();
+      isDrawing = false;
+      drawingStart = null;
+      drawingEnd = null;
+    });
+    _saveDesign(); // Save the cleared state
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Canvas cleared', style: GoogleFonts.saira()),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // Undo/Redo functionality
+  void _saveStateToHistory() {
+    final state = CanvasState(
+      icons: droppedIcons.map((icon) => icon.copy()).toList(),
+      lines: drawnLines.map((line) => line.copy()).toList(),
+      connections: Map<int, LineConnection>.from(lineConnections),
+    );
+
+    _undoStack.add(state);
+    if (_undoStack.length > _maxHistorySize) {
+      _undoStack.removeAt(0); // Remove oldest state
+    }
+
+    // Clear redo stack when new action is performed
+    _redoStack.clear();
+  }
+
+  void _undo() {
+    if (_undoStack.isEmpty) return;
+
+    // Save current state to redo stack
+    final currentState = CanvasState(
+      icons: droppedIcons.map((icon) => icon.copy()).toList(),
+      lines: drawnLines.map((line) => line.copy()).toList(),
+      connections: Map<int, LineConnection>.from(lineConnections),
+    );
+    _redoStack.add(currentState);
+
+    // Restore previous state
+    final previousState = _undoStack.removeLast();
+    setState(() {
+      droppedIcons = previousState.icons.map((icon) => icon.copy()).toList();
+      drawnLines = previousState.lines.map((line) => line.copy()).toList();
+      lineConnections = Map<int, LineConnection>.from(
+        previousState.connections,
+      );
+      selectedIcons.clear();
+      selectedLines.clear();
+    });
+
+    _saveDesign();
+  }
+
+  void _redo() {
+    if (_redoStack.isEmpty) return;
+
+    // Save current state to undo stack
+    final currentState = CanvasState(
+      icons: droppedIcons.map((icon) => icon.copy()).toList(),
+      lines: drawnLines.map((line) => line.copy()).toList(),
+      connections: Map<int, LineConnection>.from(lineConnections),
+    );
+    _undoStack.add(currentState);
+
+    // Restore next state
+    final nextState = _redoStack.removeLast();
+    setState(() {
+      droppedIcons = nextState.icons.map((icon) => icon.copy()).toList();
+      drawnLines = nextState.lines.map((line) => line.copy()).toList();
+      lineConnections = Map<int, LineConnection>.from(nextState.connections);
+      selectedIcons.clear();
+      selectedLines.clear();
+    });
+
+    _saveDesign();
+  }
+
+  // The 14 data source icons - these are the starting points for data flow
+  static const Set<String> dataSourceIcons = {
+    // Primary Sources - User/Client Entry Points (7 icons)
+    'Mobile Client',
+    'Desktop Client',
+    'Tablet Client',
+    'Web Browser',
+    'User',
+    'Admin User',
+    'Group Users',
+    // External Data Sources (4 icons)
+    'Third Party API',
+    'Weather Service',
+    'Social Media API',
+    'GPS Tracking',
+    // Internal Event Generators (3 icons)
+    'Scheduler',
+    'Alert System',
+    'Push Notification',
+  };
+
+  // Get the set of line indices that should have active data flow
+  // Data flow is only active if the line's tail icon is connected
+  // (directly or indirectly) to one of the 14 data source icons
+  Set<int> _getActiveDataFlowLines() {
+    // Build a reverse graph: for each icon, which icons connect TO it (via valid green lines)
+    // This allows us to trace backwards from any icon to see if it reaches a source
+    Map<int, Set<int>> incomingConnections = {};
+
+    // Build the reverse connection graph from valid (green) lines only
+    for (final entry in lineConnections.entries) {
+      final lineIndex = entry.key;
+      final connection = entry.value;
+
+      if (lineIndex >= drawnLines.length) continue;
+      final line = drawnLines[lineIndex];
+      if (line.color != Colors.green) continue;
+
+      final tailIdx = connection.tailIconIndex;
+      final headIdx = connection.headIconIndex;
+
+      if (tailIdx != null && headIdx != null) {
+        // headIcon can be reached FROM tailIcon
+        // So in reverse: headIcon has incoming connection from tailIcon
+        incomingConnections.putIfAbsent(headIdx, () => {});
+        incomingConnections[headIdx]!.add(tailIdx);
+      }
+    }
+
+    // Find all icons that ARE data sources (by name)
+    Set<int> sourceIconIndices = {};
+    for (int i = 0; i < droppedIcons.length; i++) {
+      if (dataSourceIcons.contains(droppedIcons[i].name)) {
+        sourceIconIndices.add(i);
+      }
+    }
+
+    // BFS backwards: find all icons that can reach a source icon
+    // Start from all icons and see which ones can trace back to a source
+    Set<int> iconsReachableFromSource = Set.from(sourceIconIndices);
+    List<int> queue = sourceIconIndices.toList();
+
+    // We need to go FORWARD from sources to find all reachable icons
+    // Build forward graph
+    Map<int, Set<int>> outgoingConnections = {};
+    for (final entry in lineConnections.entries) {
+      final lineIndex = entry.key;
+      final connection = entry.value;
+
+      if (lineIndex >= drawnLines.length) continue;
+      final line = drawnLines[lineIndex];
+      if (line.color != Colors.green) continue;
+
+      final tailIdx = connection.tailIconIndex;
+      final headIdx = connection.headIconIndex;
+
+      if (tailIdx != null && headIdx != null) {
+        outgoingConnections.putIfAbsent(tailIdx, () => {});
+        outgoingConnections[tailIdx]!.add(headIdx);
+      }
+    }
+
+    // BFS forward from source icons to find all reachable icons
+    while (queue.isNotEmpty) {
+      final currentIcon = queue.removeAt(0);
+      final nextIcons = outgoingConnections[currentIcon] ?? {};
+
+      for (final nextIcon in nextIcons) {
+        if (!iconsReachableFromSource.contains(nextIcon)) {
+          iconsReachableFromSource.add(nextIcon);
+          queue.add(nextIcon);
+        }
+      }
+    }
+
+    // A line should have data flow if:
+    // 1. It's a valid (green) connection
+    // 2. Its tail icon is reachable from a data source
+    Set<int> activeLines = {};
+    for (final entry in lineConnections.entries) {
+      final lineIndex = entry.key;
+      final connection = entry.value;
+
+      if (lineIndex >= drawnLines.length) continue;
+      final line = drawnLines[lineIndex];
+      if (line.color != Colors.green) continue;
+
+      final tailIdx = connection.tailIconIndex;
+      if (tailIdx != null && iconsReachableFromSource.contains(tailIdx)) {
+        activeLines.add(lineIndex);
+      }
+    }
+
+    return activeLines;
+  }
+
+  // Build canvas validation data for the notebook
+  CanvasValidationData _buildCanvasValidationData() {
+    // Convert icons to validation format
+    final icons =
+        droppedIcons
+            .map(
+              (icon) => {
+                'name': icon.name,
+                'category': icon.category,
+                'positionX': icon.position.dx,
+                'positionY': icon.position.dy,
+              },
+            )
+            .toList();
+
+    // Convert connections to validation format
+    final connections = <Map<String, dynamic>>[];
+    for (final entry in lineConnections.entries) {
+      final lineIndex = entry.key;
+      final connection = entry.value;
+
+      if (lineIndex < drawnLines.length) {
+        final line = drawnLines[lineIndex];
+        connections.add({
+          'fromIconIndex': connection.tailIconIndex,
+          'toIconIndex': connection.headIconIndex,
+          'isGreen': line.color == Colors.green,
+        });
+      }
+    }
+
+    return CanvasValidationData(icons: icons, connections: connections);
+  }
+
   // Update connections for all lines
   void _updateAllLineConnections() {
     for (int i = 0; i < drawnLines.length; i++) {
@@ -391,12 +710,29 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
       // Calculate edge points: from head icon towards tail icon
       final newEnd = _getClosestPointOnIconEdge(headIcon, tailCenter);
 
-      // Update the line with new snapped positions connecting the two icons
+      // Check if connecting the same icon instance to itself (always invalid)
+      bool isValidConnection;
+      if (tailIconIndex == headIconIndex) {
+        // Same icon instance - ALWAYS invalid (red)
+        isValidConnection = false;
+        print('  ⚠️ Same icon instance connected to itself - INVALID');
+      } else {
+        // Different icon instances - validate the connection
+        isValidConnection = SystemDesignIcons.isValidConnection(
+          tailIcon.name,
+          headIcon.name,
+        );
+      }
+
+      // Set color based on validity: green for valid, red for invalid
+      final connectionColor = isValidConnection ? Colors.green : Colors.red;
+
+      // Update the line with new snapped positions and validation color
       // Don't use setState here, let the caller handle it
       drawnLines[lineIndex] = DrawnLine.withExtendedLines(
         start: newStart,
         end: newEnd,
-        color: line.color,
+        color: connectionColor,
         strokeWidth: line.strokeWidth,
         canvasWidth: 2000,
         canvasHeight: 1500,
@@ -405,6 +741,19 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
       print('Line $lineIndex snapped to connect icons:');
       print('  From ${tailIcon.name} at $newStart');
       print('  To ${headIcon.name} at $newEnd');
+      print(
+        '  Valid connection: $isValidConnection (${isValidConnection ? "GREEN" : "RED"})',
+      );
+    } else {
+      // Line doesn't connect two icons - keep it gray/neutral
+      drawnLines[lineIndex] = DrawnLine.withExtendedLines(
+        start: line.start,
+        end: line.end,
+        color: Colors.grey,
+        strokeWidth: line.strokeWidth,
+        canvasWidth: 2000,
+        canvasHeight: 1500,
+      );
     }
 
     // Store the connection (after potentially updating the line)
@@ -657,7 +1006,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 6, 4, 4),
+      backgroundColor: const Color(0xFF2C1810),
       body: SafeArea(
         child: Column(
           children: [
@@ -666,17 +1015,14 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [
-                    Color.fromARGB(255, 82, 0, 105),
-                    Color.fromARGB(255, 42, 0, 52),
-                  ],
+                  colors: [Color(0xFF3D2817), Color(0xFF2C1810)],
                   begin: Alignment.topLeft,
                   end: Alignment.topRight,
                 ),
                 border: Border(
                   bottom: BorderSide(
-                    color: Colors.white.withOpacity(0.2),
-                    width: 1,
+                    color: const Color(0xFFFFE4B5).withOpacity(0.3),
+                    width: 2,
                   ),
                 ),
               ),
@@ -686,7 +1032,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(
                       Icons.arrow_back_ios,
-                      color: Colors.white,
+                      color: Color(0xFFFFE4B5),
                       size: 24,
                     ),
                   ),
@@ -698,12 +1044,16 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                         textStyle: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Color(0xFFFFE4B5),
                         ),
                       ),
                     ),
                   ),
-                  const Icon(Icons.architecture, color: Colors.white, size: 28),
+                  const Icon(
+                    Icons.architecture,
+                    color: Color(0xFFFF6B35),
+                    size: 28,
+                  ),
                 ],
               ),
             ),
@@ -712,11 +1062,11 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
             Container(
               height: 140, // Increased from 120 to 140
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
+                color: const Color(0xFF3D2817).withOpacity(0.8),
                 border: Border(
                   bottom: BorderSide(
-                    color: Colors.white.withOpacity(0.2),
-                    width: 1,
+                    color: const Color(0xFFFFE4B5).withOpacity(0.3),
+                    width: 2,
                   ),
                 ),
               ),
@@ -739,12 +1089,22 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                       color:
                           isExpanded
                               ? _getCategoryColor(categoryName).withOpacity(0.3)
-                              : Colors.black.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(12),
+                              : const Color(0xFF4A3420),
+                      borderRadius: BorderRadius.circular(0), // Pixel style
                       border: Border.all(
-                        color: _getCategoryColor(categoryName),
+                        color:
+                            isExpanded
+                                ? const Color(0xFFFF6B35)
+                                : const Color(0xFFFFE4B5),
                         width: isExpanded ? 2 : 1,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 0,
+                          offset: const Offset(2, 2),
+                        ),
+                      ],
                     ),
                     child: InkWell(
                       onTap: () {
@@ -758,7 +1118,6 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                           }
                         });
                       },
-                      borderRadius: BorderRadius.circular(12),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -766,7 +1125,10 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                           children: [
                             Icon(
                               _getCategoryIcon(categoryName),
-                              color: _getCategoryColor(categoryName),
+                              color:
+                                  isExpanded
+                                      ? const Color(0xFFFF6B35)
+                                      : const Color(0xFFFFE4B5),
                               size: 24,
                             ),
                             const SizedBox(height: 8),
@@ -776,7 +1138,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                 textStyle: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: Color(0xFFFFE4B5),
                                 ),
                               ),
                               textAlign: TextAlign.center,
@@ -875,8 +1237,8 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Color.fromARGB(255, 20, 20, 30),
-                      Color.fromARGB(255, 6, 4, 4),
+                      Color(0xFF1A0F09), // Darker cozy brown
+                      Color(0xFF2C1810), // Base cozy brown
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -953,6 +1315,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                   // Update all line connections after adding an icon
                                   _updateAllLineConnections();
                                 });
+                                _saveStateToHistory(); // Save state after adding icon
                                 _saveDesign(); // Auto-save after icon is added
                               },
                               builder: (context, candidateData, rejectedData) {
@@ -1076,13 +1439,16 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                   DrawnLine.withExtendedLines(
                                                     start: drawingStart!,
                                                     end: drawingEnd!,
-                                                    color: Colors.blue,
+                                                    color:
+                                                        Colors
+                                                            .grey, // Initial color, will be updated
                                                     strokeWidth: 2.0,
                                                     canvasWidth: 2000,
                                                     canvasHeight: 1500,
                                                   ),
                                                 );
                                                 // Update connection for the newly added line
+                                                // This will validate and set the color
                                                 _updateLineConnection(
                                                   drawnLines.length - 1,
                                                 );
@@ -1093,6 +1459,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                 selectedIcons.clear();
                                                 selectedLines.clear();
                                               });
+                                              _saveStateToHistory(); // Save state after drawing line
                                               _saveDesign(); // Save after drawing a line
                                             }
                                           }
@@ -1108,19 +1475,34 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                         ),
                                       ),
 
-                                      // Line drawing layer
+                                      // Line drawing layer with data flow animation
                                       Container(
                                         width: double.infinity,
                                         height: double.infinity,
-                                        child: CustomPaint(
-                                          painter: LinePainter(
-                                            lines: drawnLines,
-                                            selectedLineIndices: selectedLines,
-                                            currentStart: drawingStart,
-                                            currentEnd: drawingEnd,
-                                            showExtendedLines:
-                                                showExtendedLines,
-                                          ),
+                                        child: AnimatedBuilder(
+                                          animation:
+                                              _dataFlowAnimationController,
+                                          builder: (context, child) {
+                                            // Calculate which lines should have active data flow
+                                            final activeLines =
+                                                _getActiveDataFlowLines();
+                                            return CustomPaint(
+                                              painter: LinePainter(
+                                                lines: drawnLines,
+                                                selectedLineIndices:
+                                                    selectedLines,
+                                                activeDataFlowLines:
+                                                    activeLines,
+                                                currentStart: drawingStart,
+                                                currentEnd: drawingEnd,
+                                                showExtendedLines:
+                                                    showExtendedLines,
+                                                dataFlowProgress:
+                                                    _dataFlowAnimationController
+                                                        .value,
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
 
@@ -1132,24 +1514,29 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                         child: Container(
                                           padding: const EdgeInsets.all(16),
                                           decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(
-                                              0.3,
-                                            ),
+                                            color: const Color(0xFF3D2817),
                                             borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
+                                              0,
+                                            ), // Pixel style
                                             border: Border.all(
-                                              color: Colors.white.withOpacity(
-                                                0.2,
-                                              ),
-                                              width: 1,
+                                              color: const Color(0xFFFFE4B5),
+                                              width: 2,
                                             ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(
+                                                  0.5,
+                                                ),
+                                                blurRadius: 0,
+                                                offset: const Offset(3, 3),
+                                              ),
+                                            ],
                                           ),
                                           child: Row(
                                             children: [
                                               const Icon(
                                                 Icons.architecture,
-                                                color: Colors.white,
+                                                color: Color(0xFFFF6B35),
                                                 size: 24,
                                               ),
                                               const SizedBox(width: 12),
@@ -1163,8 +1550,12 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                     fontWeight: FontWeight.bold,
                                                     color:
                                                         isDrawingMode
-                                                            ? Colors.blue
-                                                            : Colors.white,
+                                                            ? const Color(
+                                                              0xFFFF6B35,
+                                                            )
+                                                            : const Color(
+                                                              0xFFFFE4B5,
+                                                            ),
                                                   ),
                                                 ),
                                               ),
@@ -1178,17 +1569,25 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                 decoration: BoxDecoration(
                                                   color:
                                                       drawnLines.isEmpty
-                                                          ? Colors.grey
-                                                              .withOpacity(0.3)
-                                                          : Colors.green
-                                                              .withOpacity(0.3),
+                                                          ? const Color(
+                                                            0xFF4A3420,
+                                                          )
+                                                          : const Color(
+                                                            0xFF228B22,
+                                                          ).withOpacity(0.4),
                                                   borderRadius:
-                                                      BorderRadius.circular(12),
+                                                      BorderRadius.circular(
+                                                        0,
+                                                      ), // Pixel style
                                                   border: Border.all(
                                                     color:
                                                         drawnLines.isEmpty
-                                                            ? Colors.grey
-                                                            : Colors.green,
+                                                            ? const Color(
+                                                              0xFFFFE4B5,
+                                                            ).withOpacity(0.5)
+                                                            : const Color(
+                                                              0xFF228B22,
+                                                            ),
                                                     width: 1,
                                                   ),
                                                 ),
@@ -1198,7 +1597,9 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                   children: [
                                                     Icon(
                                                       Icons.arrow_forward,
-                                                      color: Colors.white,
+                                                      color: const Color(
+                                                        0xFFFFE4B5,
+                                                      ),
                                                       size: 14,
                                                     ),
                                                     SizedBox(width: 4),
@@ -1213,43 +1614,6 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                     ),
                                                   ],
                                                 ),
-                                              ),
-                                              const Spacer(),
-                                              // Select All/Clear Selection button
-                                              IconButton(
-                                                onPressed: () {
-                                                  setState(() {
-                                                    if (selectedIcons.length ==
-                                                        droppedIcons.length) {
-                                                      selectedIcons.clear();
-                                                    } else {
-                                                      selectedIcons = Set.from(
-                                                        List.generate(
-                                                          droppedIcons.length,
-                                                          (index) => index,
-                                                        ),
-                                                      );
-                                                    }
-                                                  });
-                                                },
-                                                icon: Icon(
-                                                  selectedIcons.length ==
-                                                              droppedIcons
-                                                                  .length &&
-                                                          droppedIcons
-                                                              .isNotEmpty
-                                                      ? Icons.deselect
-                                                      : Icons.select_all,
-                                                  color: Colors.white70,
-                                                ),
-                                                tooltip:
-                                                    selectedIcons.length ==
-                                                                droppedIcons
-                                                                    .length &&
-                                                            droppedIcons
-                                                                .isNotEmpty
-                                                        ? 'Deselect All'
-                                                        : 'Select All',
                                               ),
                                             ],
                                           ),
@@ -1441,6 +1805,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                   // Update all line connections after moving an icon
                                                   _updateAllLineConnections();
                                                 });
+                                                _saveStateToHistory(); // Save state after moving icon
                                                 _saveDesign(); // Auto-save after icon is moved
                                               },
                                               child: _buildCanvasIconWidget(
@@ -1460,18 +1825,22 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                         Container(
                                           width: double.infinity,
                                           height: double.infinity,
-                                          color: Colors.blue.withOpacity(0.1),
+                                          color: const Color(
+                                            0xFFFF6B35,
+                                          ).withOpacity(0.1),
                                           child: Center(
                                             child: Container(
                                               padding: const EdgeInsets.all(16),
                                               decoration: BoxDecoration(
-                                                color: Colors.blue.withOpacity(
-                                                  0.2,
-                                                ),
+                                                color: const Color(
+                                                  0xFF3D2817,
+                                                ).withOpacity(0.9),
                                                 borderRadius:
-                                                    BorderRadius.circular(12),
+                                                    BorderRadius.circular(0),
                                                 border: Border.all(
-                                                  color: Colors.blue,
+                                                  color: const Color(
+                                                    0xFFFF6B35,
+                                                  ),
                                                   width: 2,
                                                 ),
                                               ),
@@ -1481,7 +1850,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                   textStyle: const TextStyle(
                                                     fontSize: 16,
                                                     fontWeight: FontWeight.bold,
-                                                    color: Colors.blue,
+                                                    color: Color(0xFFFFE4B5),
                                                   ),
                                                 ),
                                               ),
@@ -1722,93 +2091,312 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               // Compare with Demos button (NEW - at the top)
-                              FloatingActionButton.small(
-                                heroTag: "compare_demos",
-                                onPressed: () {
-                                  // Get current canvas data
-                                  final iconsData =
-                                      droppedIcons
-                                          .map((icon) => icon.toJson())
-                                          .toList();
-                                  final linesData =
-                                      drawnLines
-                                          .map((line) => line.toJson())
-                                          .toList();
+                              SizedBox(
+                                height: 30,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    // Get current canvas data with connection info
+                                    final iconsData =
+                                        droppedIcons
+                                            .map((icon) => icon.toJson())
+                                            .toList();
 
-                                  showDesignComparisonDialog(
-                                    context: context,
-                                    systemName: widget.systemName,
-                                    userIcons: iconsData,
-                                    userLines: linesData,
-                                  );
-                                },
-                                backgroundColor: Colors.teal.withOpacity(0.9),
-                                child: const Icon(
-                                  Icons.compare_arrows,
-                                  color: Colors.white,
+                                    // Build connections list from lineConnections map
+                                    final connectionsData =
+                                        <Map<String, dynamic>>[];
+                                    lineConnections.forEach((
+                                      lineIndex,
+                                      connection,
+                                    ) {
+                                      if (connection.tailIconIndex != null &&
+                                          connection.headIconIndex != null) {
+                                        connectionsData.add({
+                                          'fromIconIndex':
+                                              connection.tailIconIndex,
+                                          'toIconIndex':
+                                              connection.headIconIndex,
+                                        });
+                                      }
+                                    });
+
+                                    showDesignComparisonDialog(
+                                      context: context,
+                                      systemName: widget.systemName,
+                                      userIcons: iconsData,
+                                      userConnections: connectionsData,
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3D2817),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: const BorderSide(
+                                        color: Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.compare_arrows,
+                                    size: 14,
+                                    color: Color(0xFFFF6B35),
+                                  ),
+                                  label: const Text(
+                                    'Compare designs',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
                                 ),
-                                tooltip: 'Compare with Demo Designs',
+                              ),
+                              const SizedBox(height: 10),
+                              // Clear button
+                              SizedBox(
+                                height: 30,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    _showClearConfirmationDialog();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF8B0000),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: const BorderSide(
+                                        color: Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.clear_all, size: 14),
+                                  label: const Text(
+                                    'Clear All',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              // Undo/Redo buttons
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Undo button
+                                  SizedBox(
+                                    height: 30,
+                                    width: 30,
+                                    child: ElevatedButton(
+                                      onPressed:
+                                          _undoStack.isEmpty ? null : _undo,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            _undoStack.isEmpty
+                                                ? const Color(0xFF4A3420)
+                                                : const Color(0xFF3D2817),
+                                        foregroundColor: const Color(
+                                          0xFFFFE4B5,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            0,
+                                          ),
+                                          side: BorderSide(
+                                            color:
+                                                _undoStack.isEmpty
+                                                    ? const Color(
+                                                      0xFFFFE4B5,
+                                                    ).withOpacity(0.3)
+                                                    : const Color(0xFFFFE4B5),
+                                            width: 1,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.undo,
+                                        size: 14,
+                                        color:
+                                            _undoStack.isEmpty
+                                                ? const Color(
+                                                  0xFFFFE4B5,
+                                                ).withOpacity(0.3)
+                                                : const Color(0xFFFF6B35),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  // Redo button
+                                  SizedBox(
+                                    height: 30,
+                                    width: 30,
+                                    child: ElevatedButton(
+                                      onPressed:
+                                          _redoStack.isEmpty ? null : _redo,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            _redoStack.isEmpty
+                                                ? const Color(0xFF4A3420)
+                                                : const Color(0xFF3D2817),
+                                        foregroundColor: const Color(
+                                          0xFFFFE4B5,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            0,
+                                          ),
+                                          side: BorderSide(
+                                            color:
+                                                _redoStack.isEmpty
+                                                    ? const Color(
+                                                      0xFFFFE4B5,
+                                                    ).withOpacity(0.3)
+                                                    : const Color(0xFFFFE4B5),
+                                            width: 1,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.redo,
+                                        size: 14,
+                                        color:
+                                            _redoStack.isEmpty
+                                                ? const Color(
+                                                  0xFFFFE4B5,
+                                                ).withOpacity(0.3)
+                                                : const Color(0xFFFF6B35),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 10),
                               // Library button
-                              FloatingActionButton.small(
-                                heroTag: "library",
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => const IconLibraryDialog(),
-                                  );
-                                },
-                                backgroundColor: Colors.purple.withOpacity(0.9),
-                                child: const Icon(
-                                  Icons.library_books,
-                                  color: Colors.white,
+                              SizedBox(
+                                height: 30,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder:
+                                          (context) =>
+                                              const IconLibraryDialog(),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3D2817),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: const BorderSide(
+                                        color: Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.library_books,
+                                    size: 14,
+                                    color: Color(0xFFFF6B35),
+                                  ),
+                                  label: const Text(
+                                    'Icon Library',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
                                 ),
-                                tooltip: 'Icon Library',
                               ),
                               const SizedBox(height: 10),
                               // Delete button (positioned above drawing button)
                               if (selectedIcons.isNotEmpty ||
                                   selectedLines.isNotEmpty)
-                                FloatingActionButton.small(
-                                  heroTag: "delete",
-                                  onPressed: () {
-                                    _deleteSelectedIcons();
-                                  },
-                                  backgroundColor: Colors.red.withOpacity(0.8),
-                                  child: const Icon(
-                                    Icons.delete,
-                                    color: Colors.white,
+                                SizedBox(
+                                  height: 30,
+                                  width: 30,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      _deleteSelectedIcons();
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF8B0000),
+                                      foregroundColor: const Color(0xFFFFE4B5),
+                                      padding: EdgeInsets.zero,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(0),
+                                        side: const BorderSide(
+                                          color: Color(0xFFFFE4B5),
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.delete,
+                                      size: 14,
+                                      color: Color(0xFFFFE4B5),
+                                    ),
                                   ),
                                 ),
                               if (selectedIcons.isNotEmpty ||
                                   selectedLines.isNotEmpty)
                                 const SizedBox(height: 10),
                               // Drawing mode toggle button
-                              FloatingActionButton.small(
-                                heroTag: "drawing",
-                                onPressed: () {
-                                  setState(() {
-                                    isDrawingMode = !isDrawingMode;
-                                    selectedIcons
-                                        .clear(); // Clear selections when switching modes
-                                    selectedLines.clear();
-                                    // Cancel any ongoing drawing
-                                    isDrawing = false;
-                                    drawingStart = null;
-                                    drawingEnd = null;
-                                  });
-                                },
-                                backgroundColor:
-                                    isDrawingMode
-                                        ? Colors.blue.withOpacity(0.8)
-                                        : Colors.grey.withOpacity(0.8),
-                                child: Icon(
-                                  isDrawingMode
-                                      ? Icons.timeline
-                                      : Icons.linear_scale,
-                                  color: Colors.white,
+                              SizedBox(
+                                height: 30,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      isDrawingMode = !isDrawingMode;
+                                      selectedIcons
+                                          .clear(); // Clear selections when switching modes
+                                      selectedLines.clear();
+                                      // Cancel any ongoing drawing
+                                      isDrawing = false;
+                                      drawingStart = null;
+                                      drawingEnd = null;
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        isDrawingMode
+                                            ? const Color(0xFF2E5930)
+                                            : const Color(0xFF3D2817),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: BorderSide(
+                                        color:
+                                            isDrawingMode
+                                                ? const Color(0xFF90EE90)
+                                                : const Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  icon: Icon(
+                                    Icons.arrow_forward,
+                                    size: 14,
+                                    color:
+                                        isDrawingMode
+                                            ? const Color(0xFF90EE90)
+                                            : const Color(0xFFFF6B35),
+                                  ),
+                                  label: const Text(
+                                    'Connect',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -1834,79 +2422,149 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                               //   tooltip: 'Debug: Check Stored Data',
                               // ),
                               // const SizedBox(height: 10),
-                              FloatingActionButton.small(
-                                heroTag: "notebook",
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (
-                                            context,
-                                          ) => SystemDescriptionNotebook(
-                                            systemId: widget.systemName
-                                                .toLowerCase()
-                                                .replaceAll(' ', '_'),
-                                            systemName: widget.systemName,
-                                            usedComponents:
-                                                droppedIcons
-                                                    .map((icon) => icon.name)
-                                                    .toList(),
-                                            onSubmitDesign:
-                                                widget
-                                                    .onSubmitDesign, // Pass the callback
-                                          ),
+                              SizedBox(
+                                height: 30,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    // Build canvas validation data
+                                    final canvasData =
+                                        _buildCanvasValidationData();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder:
+                                            (
+                                              context,
+                                            ) => SystemDescriptionNotebook(
+                                              systemId: widget.systemName
+                                                  .toLowerCase()
+                                                  .replaceAll(' ', '_'),
+                                              systemName: widget.systemName,
+                                              usedComponents:
+                                                  droppedIcons
+                                                      .map((icon) => icon.name)
+                                                      .toList(),
+                                              onSubmitDesign:
+                                                  widget
+                                                      .onSubmitDesign, // Pass the callback
+                                              canvasData:
+                                                  canvasData, // Pass canvas data for validation
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3D2817),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
                                     ),
-                                  );
-                                },
-                                backgroundColor: Colors.purple.withOpacity(0.8),
-                                child: const Icon(
-                                  Icons.description,
-                                  color: Colors.white,
-                                ),
-                                tooltip: 'Add Description',
-                              ),
-                              const SizedBox(height: 8),
-                              FloatingActionButton.small(
-                                heroTag: "zoom_in",
-                                onPressed: () {
-                                  final Matrix4 matrix =
-                                      _transformationController.value.clone();
-                                  matrix.scale(1.2); // Zoom in by 20%
-                                  _transformationController.value = matrix;
-                                },
-                                backgroundColor: Colors.black.withOpacity(0.7),
-                                child: const Icon(
-                                  Icons.zoom_in,
-                                  color: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: const BorderSide(
+                                        color: Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.description,
+                                    size: 14,
+                                    color: Color(0xFFFF6B35),
+                                  ),
+                                  label: const Text(
+                                    'Add Description',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              FloatingActionButton.small(
-                                heroTag: "zoom_out",
-                                onPressed: () {
-                                  final Matrix4 matrix =
-                                      _transformationController.value.clone();
-                                  matrix.scale(0.8); // Zoom out by 20%
-                                  _transformationController.value = matrix;
-                                },
-                                backgroundColor: Colors.black.withOpacity(0.7),
-                                child: const Icon(
-                                  Icons.zoom_out,
-                                  color: Colors.white,
+                              SizedBox(
+                                height: 30,
+                                width: 30,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    final Matrix4 matrix =
+                                        _transformationController.value.clone();
+                                    matrix.scale(1.2); // Zoom in by 20%
+                                    _transformationController.value = matrix;
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3D2817),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: EdgeInsets.zero,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: const BorderSide(
+                                        color: Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.zoom_in,
+                                    size: 14,
+                                    color: Color(0xFFFF6B35),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              FloatingActionButton.small(
-                                heroTag: "fit_to_screen",
-                                onPressed: () {
-                                  _transformationController.value =
-                                      Matrix4.identity();
-                                },
-                                backgroundColor: Colors.black.withOpacity(0.7),
-                                child: const Icon(
-                                  Icons.fit_screen,
-                                  color: Colors.white,
+                              SizedBox(
+                                height: 30,
+                                width: 30,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    final Matrix4 matrix =
+                                        _transformationController.value.clone();
+                                    matrix.scale(0.8); // Zoom out by 20%
+                                    _transformationController.value = matrix;
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3D2817),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: EdgeInsets.zero,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: const BorderSide(
+                                        color: Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.zoom_out,
+                                    size: 14,
+                                    color: Color(0xFFFF6B35),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 30,
+                                width: 30,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    _transformationController.value =
+                                        Matrix4.identity();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3D2817),
+                                    foregroundColor: const Color(0xFFFFE4B5),
+                                    padding: EdgeInsets.zero,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(0),
+                                      side: const BorderSide(
+                                        color: Color(0xFFFFE4B5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.fit_screen,
+                                    size: 14,
+                                    color: Color(0xFFFF6B35),
+                                  ),
                                 ),
                               ),
                               // Submit Design Button removed - now handled by notebook submit
@@ -2043,19 +2701,22 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
             color: _getCategoryColor(
               category,
             ).withOpacity(isSelected ? 1.0 : 0.8),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(0), // Pixel style
             border: Border.all(
-              color: isSelected ? Colors.yellow : _getCategoryColor(category),
+              color:
+                  isSelected
+                      ? const Color(0xFFFF6B35)
+                      : const Color(0xFFFFE4B5),
               width: isSelected ? 3 : 2,
             ),
             boxShadow: [
               BoxShadow(
                 color:
                     isSelected
-                        ? Colors.yellow.withOpacity(0.5)
-                        : _getCategoryColor(category).withOpacity(0.3),
-                blurRadius: isSelected ? 8 : 6,
-                offset: const Offset(0, 3),
+                        ? const Color(0xFFFF6B35).withOpacity(0.5)
+                        : Colors.black.withOpacity(0.5),
+                blurRadius: 0, // Pixel style - no blur
+                offset: const Offset(2, 2),
               ),
             ],
           ),
@@ -2073,10 +2734,10 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
           constraints: const BoxConstraints(maxWidth: 80),
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(4),
+            color: const Color(0xFF3D2817),
+            borderRadius: BorderRadius.circular(0), // Pixel style
             border: Border.all(
-              color: _getCategoryColor(category).withOpacity(0.5),
+              color: const Color(0xFFFFE4B5).withOpacity(0.5),
               width: 1,
             ),
           ),
@@ -2090,7 +2751,7 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                         style: GoogleFonts.saira(
                           textStyle: const TextStyle(
                             fontSize: 8,
-                            color: Colors.white,
+                            color: Color(0xFFFFE4B5),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -2222,6 +2883,16 @@ class DroppedIcon {
         json['positionX'].toDouble(),
         json['positionY'].toDouble(),
       ),
+    );
+  }
+
+  // Create a copy for undo/redo
+  DroppedIcon copy() {
+    return DroppedIcon(
+      name: name,
+      icon: icon,
+      category: category,
+      position: position,
     );
   }
 }
@@ -2450,22 +3121,40 @@ class DrawnLine {
               : null,
     );
   }
+
+  // Create a copy for undo/redo
+  DrawnLine copy() {
+    return DrawnLine(
+      start: start,
+      end: end,
+      color: color,
+      strokeWidth: strokeWidth,
+      extendedTailStart: extendedTailStart,
+      extendedTailEnd: extendedTailEnd,
+      extendedHeadStart: extendedHeadStart,
+      extendedHeadEnd: extendedHeadEnd,
+    );
+  }
 }
 
-// Custom painter for drawing lines
+// Custom painter for drawing lines with data flow animation
 class LinePainter extends CustomPainter {
   final List<DrawnLine> lines;
   final Set<int> selectedLineIndices;
+  final Set<int> activeDataFlowLines; // Lines connected to data sources
   final Offset? currentStart;
   final Offset? currentEnd;
   final bool showExtendedLines;
+  final double dataFlowProgress;
 
   LinePainter({
     required this.lines,
     required this.selectedLineIndices,
+    required this.activeDataFlowLines,
     this.currentStart,
     this.currentEnd,
     this.showExtendedLines = true,
+    this.dataFlowProgress = 0.0,
   });
 
   @override
@@ -2480,6 +3169,23 @@ class LinePainter extends CustomPainter {
       final line = lines[i];
       final isSelected = selectedLineIndices.contains(i);
 
+      // Determine if this is a valid (green) or invalid (red) connection
+      final isValidConnection = line.color == Colors.green;
+      final isInvalidConnection = line.color == Colors.red;
+
+      // Draw glow effect for valid/invalid connections
+      if (isValidConnection || isInvalidConnection) {
+        final glowPaint =
+            Paint()
+              ..color = line.color.withOpacity(0.3)
+              ..strokeWidth = 8.0
+              ..style = PaintingStyle.stroke
+              ..strokeCap = StrokeCap.round
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
+
+        canvas.drawLine(line.start, line.end, glowPaint);
+      }
+
       final paint =
           Paint()
             ..color = isSelected ? Colors.yellow : line.color
@@ -2491,6 +3197,12 @@ class LinePainter extends CustomPainter {
 
       // Draw arrow at the end
       _drawArrow(canvas, line.start, line.end, paint);
+
+      // Draw data flow animation only on lines connected to data sources
+      // Line must be: valid (green), not selected, and connected to a data source
+      if (isValidConnection && !isSelected && activeDataFlowLines.contains(i)) {
+        _drawDataFlow(canvas, line.start, line.end);
+      }
 
       // Draw selection indicator
       if (isSelected) {
@@ -2547,6 +3259,56 @@ class LinePainter extends CustomPainter {
     }
   }
 
+  // Draw animated data flow dots along the line
+  void _drawDataFlow(Canvas canvas, Offset start, Offset end) {
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final lineLength = math.sqrt(dx * dx + dy * dy);
+
+    // Number of dots based on line length
+    const dotSpacing = 30.0; // Space between dots
+    final numDots = (lineLength / dotSpacing).floor().clamp(2, 8);
+
+    // Draw multiple animated dots
+    for (int i = 0; i < numDots; i++) {
+      // Calculate position along the line with offset based on animation progress
+      final dotProgress = ((dataFlowProgress + (i / numDots)) % 1.0);
+
+      final dotX = start.dx + dx * dotProgress;
+      final dotY = start.dy + dy * dotProgress;
+
+      // Fade in/out at ends
+      double opacity = 1.0;
+      if (dotProgress < 0.1) {
+        opacity = dotProgress / 0.1;
+      } else if (dotProgress > 0.9) {
+        opacity = (1.0 - dotProgress) / 0.1;
+      }
+
+      // Draw outer glow
+      final glowPaint =
+          Paint()
+            ..color = const Color(0xFF00FF00).withOpacity(0.3 * opacity)
+            ..style = PaintingStyle.fill
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
+      canvas.drawCircle(Offset(dotX, dotY), 6, glowPaint);
+
+      // Draw main dot with cozy orange color
+      final dotPaint =
+          Paint()
+            ..color = const Color(0xFFFF6B35).withOpacity(opacity)
+            ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(dotX, dotY), 4, dotPaint);
+
+      // Draw inner bright core
+      final corePaint =
+          Paint()
+            ..color = const Color(0xFFFFE4B5).withOpacity(opacity)
+            ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(dotX, dotY), 2, corePaint);
+    }
+  }
+
   void _drawArrow(Canvas canvas, Offset start, Offset end, Paint paint) {
     const double arrowLength = 10.0;
     const double arrowAngle = 0.5;
@@ -2568,12 +3330,26 @@ class LinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return oldDelegate is! LinePainter ||
-        oldDelegate.lines != lines ||
+  bool shouldRepaint(covariant LinePainter oldDelegate) {
+    return oldDelegate.lines != lines ||
         oldDelegate.selectedLineIndices != selectedLineIndices ||
+        oldDelegate.activeDataFlowLines != activeDataFlowLines ||
         oldDelegate.currentStart != currentStart ||
         oldDelegate.currentEnd != currentEnd ||
-        oldDelegate.showExtendedLines != showExtendedLines;
+        oldDelegate.showExtendedLines != showExtendedLines ||
+        oldDelegate.dataFlowProgress != dataFlowProgress;
   }
+}
+
+// Canvas state for undo/redo functionality
+class CanvasState {
+  final List<DroppedIcon> icons;
+  final List<DrawnLine> lines;
+  final Map<int, LineConnection> connections;
+
+  CanvasState({
+    required this.icons,
+    required this.lines,
+    required this.connections,
+  });
 }

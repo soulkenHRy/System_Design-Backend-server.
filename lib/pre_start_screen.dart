@@ -6,6 +6,7 @@ import './knowledge_bank_screen.dart';
 import './design_system_screen.dart';
 import './settings_screen.dart';
 import './profile_screen.dart';
+import './world_chat_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math';
 
@@ -70,159 +71,165 @@ class _PreStartScreenState extends State<PreStartScreen>
   void _showSystemDesignHelp() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C1810),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFFFF6B35), width: 2),
-        ),
-        title: Row(
-          children: [
-            const Icon(
-              Icons.lightbulb_outline,
-              color: Color(0xFFFF6B35),
-              size: 28,
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF2C1810),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Color(0xFFFF6B35), width: 2),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'What is System Design?',
-                style: GoogleFonts.saira(
-                  color: const Color(0xFFFFE4B5),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.lightbulb_outline,
+                  color: Color(0xFFFF6B35),
+                  size: 28,
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'What is System Design?',
+                    style: GoogleFonts.saira(
+                      color: const Color(0xFFFFE4B5),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'System design is making sure all the different pieces work together smoothly, like a well-oiled machine.',
+                    style: GoogleFonts.robotoSlab(
+                      color: Colors.white,
+                      fontSize: 15,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Think of it like a pizza delivery business:',
+                    style: GoogleFonts.robotoSlab(
+                      color: const Color(0xFFFF6B35),
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildBulletPoint('The kitchen makes pizzas'),
+                  _buildBulletPoint(
+                    'The delivery drivers bring them to customers',
+                  ),
+                  _buildBulletPoint('The phone system takes orders'),
+                  _buildBulletPoint('The payment system handles money'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'System design makes sure:',
+                    style: GoogleFonts.robotoSlab(
+                      color: const Color(0xFFFF6B35),
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildBulletPoint('Orders reach the kitchen correctly'),
+                  _buildBulletPoint('Drivers know where to go'),
+                  _buildBulletPoint('Payments go through'),
+                  _buildBulletPoint('Everything happens in the right order'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'If these pieces don\'t work together properly, you get chaos - wrong orders, cold pizzas, angry customers!',
+                    style: GoogleFonts.robotoSlab(
+                      color: Colors.white,
+                      fontSize: 15,
+                      height: 1.5,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'For Apps',
+                    style: GoogleFonts.robotoSlab(
+                      color: const Color(0xFFFF6B35),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Same idea - an app like Netflix has:',
+                    style: GoogleFonts.robotoSlab(
+                      color: Colors.white,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildBulletPoint('A place that stores all the movies'),
+                  _buildBulletPoint('A system that knows what you like'),
+                  _buildBulletPoint('Servers that send video to your screen'),
+                  _buildBulletPoint('A payment system for your subscription'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'System design makes sure all these parts talk to each other and work as one system, not a bunch of confused pieces.',
+                    style: GoogleFonts.robotoSlab(
+                      color: Colors.white,
+                      fontSize: 15,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6B35).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFFF6B35),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      '✨ System design = making everything work together as a team.',
+                      style: GoogleFonts.saira(
+                        color: const Color(0xFFFFE4B5),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'System design is making sure all the different pieces work together smoothly, like a well-oiled machine.',
-                style: GoogleFonts.robotoSlab(
-                  color: Colors.white,
-                  fontSize: 15,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Think of it like a pizza delivery business:',
-                style: GoogleFonts.robotoSlab(
-                  color: const Color(0xFFFF6B35),
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildBulletPoint('The kitchen makes pizzas'),
-              _buildBulletPoint('The delivery drivers bring them to customers'),
-              _buildBulletPoint('The phone system takes orders'),
-              _buildBulletPoint('The payment system handles money'),
-              const SizedBox(height: 16),
-              Text(
-                'System design makes sure:',
-                style: GoogleFonts.robotoSlab(
-                  color: const Color(0xFFFF6B35),
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildBulletPoint('Orders reach the kitchen correctly'),
-              _buildBulletPoint('Drivers know where to go'),
-              _buildBulletPoint('Payments go through'),
-              _buildBulletPoint('Everything happens in the right order'),
-              const SizedBox(height: 16),
-              Text(
-                'If these pieces don\'t work together properly, you get chaos - wrong orders, cold pizzas, angry customers!',
-                style: GoogleFonts.robotoSlab(
-                  color: Colors.white,
-                  fontSize: 15,
-                  height: 1.5,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'For Apps',
-                style: GoogleFonts.robotoSlab(
-                  color: const Color(0xFFFF6B35),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Same idea - an app like Netflix has:',
-                style: GoogleFonts.robotoSlab(
-                  color: Colors.white,
-                  fontSize: 15,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildBulletPoint('A place that stores all the movies'),
-              _buildBulletPoint('A system that knows what you like'),
-              _buildBulletPoint('Servers that send video to your screen'),
-              _buildBulletPoint('A payment system for your subscription'),
-              const SizedBox(height: 16),
-              Text(
-                'System design makes sure all these parts talk to each other and work as one system, not a bunch of confused pieces.',
-                style: GoogleFonts.robotoSlab(
-                  color: Colors.white,
-                  fontSize: 15,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF6B35).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFFFF6B35),
-                    width: 1,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 child: Text(
-                  '✨ System design = making everything work together as a team.',
+                  'Got it!',
                   style: GoogleFonts.saira(
-                    color: const Color(0xFFFFE4B5),
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            style: TextButton.styleFrom(
-              backgroundColor: const Color(0xFFFF6B35),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: Text(
-              'Got it!',
-              style: GoogleFonts.saira(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -242,10 +249,7 @@ class _PreStartScreenState extends State<PreStartScreen>
           Expanded(
             child: Text(
               text,
-              style: GoogleFonts.robotoSlab(
-                color: Colors.white,
-                fontSize: 14,
-              ),
+              style: GoogleFonts.robotoSlab(color: Colors.white, fontSize: 14),
             ),
           ),
         ],
@@ -699,6 +703,72 @@ class _PreStartScreenState extends State<PreStartScreen>
                   ),
                 ),
 
+                const SizedBox(height: 25), // Spacing between buttons
+                // World Chat Button
+                Container(
+                  width: MediaQuery.of(context).size.width * 0.75,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3D2817),
+                    borderRadius: BorderRadius.circular(
+                      0,
+                    ), // Sharp corners for pixel style
+                    border: Border.all(
+                      color: const Color(
+                        0xFFFF6B35,
+                      ), // Orange border for emphasis
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 0,
+                        offset: const Offset(3, 3), // Sharp shadow
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const WorldChatScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 18,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.public,
+                              color: Color(0xFFFF6B35),
+                              size: 24,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'World Chat',
+                              style: GoogleFonts.saira(
+                                textStyle: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFFFE4B5),
+                                  fontFamily: 'monospace',
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 60), // Bottom spacing
               ],
             ),
@@ -808,10 +878,7 @@ class _PreStartScreenState extends State<PreStartScreen>
                 decoration: BoxDecoration(
                   color: const Color(0xFFFF6B35),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFFFFE4B5),
-                    width: 2,
-                  ),
+                  border: Border.all(color: const Color(0xFFFFE4B5), width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.5),

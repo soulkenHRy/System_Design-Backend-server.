@@ -122,14 +122,36 @@ while frontier.not_empty():
     links = extract_links(page)
     frontier.add(links)
 ```
+
+### Icons Explained
+**URL Discovery** - The starting list of URLs that bootstrap the crawler.
+
+**Crawl Queue** - A queue holding all URLs waiting to be crawled, prioritized by importance.
+
+**Web Server** - Downloads web pages by making HTTP GET requests to servers.
+
+**Content Extractor** - Parses raw HTML into a structured DOM tree for data extraction.
+
+**URL Discovery** - Finds all links in a page and normalizes them to absolute URLs.
+
+**Blob Storage** - Database storing crawled page content, metadata, and timestamps.
+
+### How They Work Together
+1. **URL Discovery** provide initial URLs to start crawling
+2. URLs added to **Crawl Queue** queue for processing
+3. **Web Server** downloads the next URL from frontier
+4. **Content Extractor** extracts content and structure from raw HTML
+5. **URL Discovery** finds all links for discovery
+6. Clean content saved to **Blob Storage**
+7. New URLs added back to **Crawl Queue**, loop repeats
 ''',
     'icons': [
-      _createIcon('Seed URLs', 'Data Processing', 50, 350),
-      _createIcon('URL Frontier', 'Message Systems', 200, 350),
-      _createIcon('HTTP Fetcher', 'Networking', 350, 350),
-      _createIcon('HTML Parser', 'Data Processing', 500, 350),
-      _createIcon('URL Extractor', 'Data Processing', 650, 250),
-      _createIcon('Content Store', 'Database & Storage', 650, 450),
+      _createIcon('URL Discovery', 'Data Processing', 50, 350),
+      _createIcon('Crawl Queue', 'Message Systems', 200, 350),
+      _createIcon('Web Server', 'Networking', 350, 350),
+      _createIcon('Content Extractor', 'Data Processing', 500, 350),
+      _createIcon('URL Discovery', 'Data Processing', 650, 250),
+      _createIcon('Blob Storage', 'Database & Storage', 650, 450),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Seed'),
@@ -220,33 +242,52 @@ Benefits:
 - Even distribution
 - Easy to scale up/down
 ```
+
+### Icons Explained
+**Crawl Coordinator** - Master node that distributes work and tracks progress across all crawlers.
+
+**ETL Pipeline** - Assigns URLs to specific crawlers using hash-based partitioning.
+
+**Crawl Coordinator** (3 instances) - Independent crawlers working in parallel on assigned URLs.
+
+**Cache** - Memory-efficient data structure for fast duplicate URL checking.
+
+**NoSQL Database** - Scalable storage (like Cassandra) for all crawled content.
+
+### How They Work Together
+1. **Crawl Coordinator** manages overall crawl progress and health
+2. **ETL Pipeline** assigns URLs to **Crawler Workers** by hash
+3. Each **Crawl Coordinator** independently fetches and parses assigned URLs
+4. Workers check **Cache** before crawling to skip seen URLs
+5. Crawled content stored in **NoSQL Database**
+6. If a worker fails, **Crawl Coordinator** reassigns its work
 ''',
     'icons': [
-      _createIcon('Coordinator', 'Application Services', 400, 150),
-      _createIcon('URL Partitioner', 'Data Processing', 400, 300),
+      _createIcon('Crawl Coordinator', 'Application Services', 400, 150),
+      _createIcon('ETL Pipeline', 'Data Processing', 400, 300),
       _createIcon(
-        'Crawler Worker',
+        'Crawl Coordinator',
         'Application Services',
         150,
         450,
         id: 'crawler1',
       ),
       _createIcon(
-        'Crawler Worker',
+        'Crawl Coordinator',
         'Application Services',
         400,
         450,
         id: 'crawler2',
       ),
       _createIcon(
-        'Crawler Worker',
+        'Crawl Coordinator',
         'Application Services',
         650,
         450,
         id: 'crawler3',
       ),
-      _createIcon('Bloom Filter', 'Caching,Performance', 400, 600),
-      _createIcon('Distributed Database', 'Database & Storage', 650, 600),
+      _createIcon('Cache', 'Caching,Performance', 400, 600),
+      _createIcon('NoSQL Database', 'Database & Storage', 650, 600),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Assign'),
@@ -357,15 +398,39 @@ User-agent: *
 Allow: /\$
 Disallow: /
 ```
+
+### Icons Explained
+**Crawl Queue** - Queue of URLs to crawl, checks politeness before processing.
+
+**Web Server** - Downloads robots.txt from each domain before crawling.
+
+**Cache** - Stores parsed robots.txt rules to avoid repeated fetches.
+
+**Content Extractor** - Interprets robots.txt rules (allowed paths, crawl delays).
+
+**Rate Limiter** - Enforces delays between requests to the same domain.
+
+**Rate Limiter** - Limits concurrent connections to each server.
+
+**Web Server** - Makes the actual HTTP request after all politeness checks pass.
+
+### How They Work Together
+1. URL pops from **Crawl Queue** for processing
+2. **Web Server** downloads robots.txt if not cached
+3. Rules stored in **Cache** for reuse
+4. **Content Extractor** checks if URL is allowed
+5. **Rate Limiter** ensures crawl delay is respected
+6. **Rate Limiter** limits concurrent requests per domain
+7. Only then does **Web Server** download the page
 ''',
     'icons': [
-      _createIcon('URL Frontier', 'Message Systems', 50, 350),
-      _createIcon('Robots Fetcher', 'Networking', 200, 250),
-      _createIcon('Robots Cache', 'Caching,Performance', 350, 250),
-      _createIcon('Robots Parser', 'Data Processing', 500, 250),
+      _createIcon('Crawl Queue', 'Message Systems', 50, 350),
+      _createIcon('Web Server', 'Networking', 200, 250),
+      _createIcon('Cache', 'Caching,Performance', 350, 250),
+      _createIcon('Content Extractor', 'Data Processing', 500, 250),
       _createIcon('Rate Limiter', 'Networking', 350, 450),
-      _createIcon('Request Throttler', 'Networking', 500, 450),
-      _createIcon('HTTP Fetcher', 'Networking', 650, 350),
+      _createIcon('Rate Limiter', 'Networking', 500, 450),
+      _createIcon('Web Server', 'Networking', 650, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Check robots'),
@@ -462,16 +527,40 @@ P1: [google.com] [amazon.com] [bbc.com]
 P2: [medium.com] [dev.to] [reddit.com]
 P3: [blog1.com] [blog2.com] [blog3.com]
 ```
+
+### Icons Explained
+**API Gateway** - Entry point that accepts newly discovered URLs.
+
+**Duplicate Detection** - Filters out URLs that have already been crawled or queued.
+
+**Ranking Engine** - Assigns importance scores based on PageRank, domain authority, and freshness.
+
+**Message Queue** (front queues) - High-priority URLs organized by importance.
+
+**Message Queue** (back queues) - Per-domain queues ensuring politeness (one at a time per host).
+
+**Routing Service** - Picks the next URL to crawl using weighted selection across queues.
+
+**Web Server** - Downloads the selected URL from the web.
+
+### How They Work Together
+1. New URLs enter through **API Gateway**
+2. **Duplicate Detection** filters out seen URLs
+3. **Ranking Engine** calculates importance score
+4. High-priority URLs go to **Message Queue**, others to **Host Queues**
+5. **Routing Service** picks next URL (weighted by priority)
+6. Selected URL sent to **Web Server** for downloading
+7. Round-robin within host queues ensures politeness
 ''',
     'icons': [
-      _createIcon('URL Receiver', 'Networking', 50, 350),
-      _createIcon('Deduplicator', 'Data Processing', 200, 350),
-      _createIcon('Prioritizer', 'Data Processing', 350, 350),
-      _createIcon('Priority Queue', 'Message Systems', 550, 200, id: 'front'),
-      _createIcon('Host Queue', 'Message Systems', 550, 350, id: 'back1'),
-      _createIcon('Host Queue', 'Message Systems', 550, 500, id: 'back2'),
-      _createIcon('Selector', 'Application Services', 750, 350),
-      _createIcon('Fetcher', 'Networking', 900, 350),
+      _createIcon('API Gateway', 'Networking', 50, 350),
+      _createIcon('Duplicate Detection', 'Data Processing', 200, 350),
+      _createIcon('Ranking Engine', 'Data Processing', 350, 350),
+      _createIcon('Message Queue', 'Message Systems', 550, 200, id: 'front'),
+      _createIcon('Message Queue', 'Message Systems', 550, 350, id: 'back1'),
+      _createIcon('Message Queue', 'Message Systems', 550, 500, id: 'back2'),
+      _createIcon('Routing Service', 'Application Services', 750, 350),
+      _createIcon('Web Server', 'Networking', 900, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'New URL'),
@@ -588,15 +677,39 @@ Boilerplate has:
   "language": "en"
 }
 ```
+
+### Icons Explained
+**Web Server** - Downloads raw HTML from web servers.
+
+**Content Extractor** - Converts raw HTML into a structured DOM tree.
+
+**Content Extractor** - Strips navigation, headers, footers, and ads to get main content.
+
+**Content Extractor** - Pulls structured data like title, author, publish date.
+
+**URL Discovery** - Finds and normalizes all URLs for further crawling.
+
+**ETL Pipeline** - Cleans text for indexing (encoding, whitespace, etc.).
+
+**Blob Storage** - Database storing extracted and processed page data.
+
+### How They Work Together
+1. **Web Server** downloads raw HTML page
+2. **Content Extractor** creates DOM tree from HTML
+3. **Content Extractor** strips navigation and ads
+4. **Content Extractor** pulls title, author, dates
+5. **URL Discovery** finds URLs for discovery (sent back to frontier)
+6. **ETL Pipeline** cleans the main content
+7. Final structured data saved to **Blob Storage**
 ''',
     'icons': [
-      _createIcon('HTTP Fetcher', 'Networking', 50, 350),
-      _createIcon('HTML Parser', 'Data Processing', 200, 350),
-      _createIcon('Boilerplate Remover', 'Data Processing', 400, 200),
-      _createIcon('Metadata Extractor', 'Data Processing', 400, 350),
-      _createIcon('Link Extractor', 'Data Processing', 400, 500),
-      _createIcon('Text Normalizer', 'Data Processing', 600, 350),
-      _createIcon('Content Store', 'Database & Storage', 800, 350),
+      _createIcon('Web Server', 'Networking', 50, 350),
+      _createIcon('Content Extractor', 'Data Processing', 200, 350),
+      _createIcon('Content Extractor', 'Data Processing', 400, 200),
+      _createIcon('Content Extractor', 'Data Processing', 400, 350),
+      _createIcon('URL Discovery', 'Data Processing', 400, 500),
+      _createIcon('ETL Pipeline', 'Data Processing', 600, 350),
+      _createIcon('Blob Storage', 'Database & Storage', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Raw HTML'),
@@ -693,15 +806,39 @@ Crawl of 1 billion pages:
 
 Dedup saves 40% storage!
 ```
+
+### Icons Explained
+**API Gateway** - Incoming URLs and content to check for duplicates.
+
+**ETL Pipeline** - Standardizes URLs (removes trailing slashes, sorts params).
+
+**Cache** - Fast probabilistic check if URL was seen before.
+
+**Security Gateway** - Creates MD5/SHA hash of content for exact duplicate detection.
+
+**Duplicate Detection** - Creates 64-bit fingerprint for near-duplicate detection.
+
+**Search Engine** - Locality Sensitive Hashing index for fast similarity search.
+
+**Server Cluster** - Groups duplicate/similar content, picks canonical version.
+
+### How They Work Together
+1. URL comes in through **API Gateway**
+2. **ETL Pipeline** standardizes the URL format
+3. **Cache** quickly checks if URL seen before
+4. **Security Gateway** creates hash for exact duplicate check
+5. **Duplicate Detection** creates fingerprint for similarity
+6. **Search Engine** finds near-duplicate candidates efficiently
+7. **Server Cluster** groups duplicates and selects canonical version
 ''',
     'icons': [
-      _createIcon('URL Input', 'Networking', 50, 350),
-      _createIcon('URL Normalizer', 'Data Processing', 200, 250),
-      _createIcon('Bloom Filter', 'Caching,Performance', 200, 450),
-      _createIcon('Content Hasher', 'Security,Monitoring', 400, 350),
-      _createIcon('SimHash Generator', 'Data Processing', 600, 250),
-      _createIcon('LSH Index', 'Database & Storage', 600, 450),
-      _createIcon('Cluster Manager', 'Data Processing', 800, 350),
+      _createIcon('API Gateway', 'Networking', 50, 350),
+      _createIcon('ETL Pipeline', 'Data Processing', 200, 250),
+      _createIcon('Cache', 'Caching,Performance', 200, 450),
+      _createIcon('Security Gateway', 'Security,Monitoring', 400, 350),
+      _createIcon('Duplicate Detection', 'Data Processing', 600, 250),
+      _createIcon('Search Engine', 'Database & Storage', 600, 450),
+      _createIcon('Server Cluster', 'Data Processing', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'URL'),
@@ -802,15 +939,39 @@ Query: "quick brown fox"
 5. Rank by TF-IDF scores
 6. Return doc1 first
 ```
+
+### Icons Explained
+**Blob Storage** - Database containing all crawled page content.
+
+**ETL Pipeline** - Splits document text into individual words/tokens.
+
+**ETL Pipeline** - Lowercases, stems words, removes stop words for consistency.
+
+**Search Engine** - Creates the inverted index mapping terms to documents.
+
+**Analytics Engine** - Computes term importance scores for ranking.
+
+**Data Pipeline** - Distributes index across multiple machines for scale.
+
+**Search Engine** - The final inverted index used for fast search queries.
+
+### How They Work Together
+1. **Blob Storage** provides crawled content
+2. **ETL Pipeline** splits text into words
+3. **ETL Pipeline** standardizes tokens (lowercase, stemming)
+4. **Search Engine** creates inverted index (term → documents)
+5. **Analytics Engine** computes relevance scores
+6. **Data Pipeline** distributes index for scale
+7. Final **Search Engine** ready for fast queries
 ''',
     'icons': [
-      _createIcon('Document Store', 'Database & Storage', 50, 350),
-      _createIcon('Tokenizer', 'Data Processing', 200, 350),
-      _createIcon('Normalizer', 'Data Processing', 350, 350),
-      _createIcon('Index Builder', 'Data Processing', 500, 250),
-      _createIcon('TF-IDF Calculator', 'Data Processing', 500, 450),
-      _createIcon('Shard Manager', 'System Utilities', 700, 350),
-      _createIcon('Search Index', 'Database & Storage', 850, 350),
+      _createIcon('Blob Storage', 'Database & Storage', 50, 350),
+      _createIcon('ETL Pipeline', 'Data Processing', 200, 350),
+      _createIcon('ETL Pipeline', 'Data Processing', 350, 350),
+      _createIcon('Search Engine', 'Data Processing', 500, 250),
+      _createIcon('Analytics Engine', 'Data Processing', 500, 450),
+      _createIcon('Data Pipeline', 'System Utilities', 700, 350),
+      _createIcon('Search Engine', 'Database & Storage', 850, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Documents'),
@@ -913,14 +1074,36 @@ REDUCE: For each page P
   Sum all incoming rank contributions
   NewPR(P) = (1-d)/N + d × sum
 ```
+
+### Icons Explained
+**Blob Storage** - Contains all crawled pages with their outgoing links.
+
+**URL Discovery** - Extracts link relationships from crawled pages.
+
+**Graph Database** - Graph database storing page-to-page link structure.
+
+**Ranking Engine** - Iteratively computes page importance from link graph.
+
+**Monitoring System** - Monitors when PageRank values stabilize.
+
+**Data Warehouse** - Database storing final computed PageRank scores.
+
+### How They Work Together
+1. **Blob Storage** provides crawled pages
+2. **URL Discovery** builds link relationships
+3. **Graph Database** stores the adjacency structure
+4. **Ranking Engine** runs iterative computation
+5. **Monitoring System** monitors for stability
+6. When converged, final ranks saved to **Data Warehouse**
+7. PageRank scores used for search result ranking
 ''',
     'icons': [
-      _createIcon('Document Store', 'Database & Storage', 50, 350),
-      _createIcon('Link Extractor', 'Data Processing', 200, 350),
-      _createIcon('Link Graph', 'Database & Storage', 400, 350),
-      _createIcon('PageRank Engine', 'Data Processing', 600, 250),
-      _createIcon('Convergence Checker', 'Data Processing', 600, 450),
-      _createIcon('Rank Store', 'Database & Storage', 800, 350),
+      _createIcon('Blob Storage', 'Database & Storage', 50, 350),
+      _createIcon('URL Discovery', 'Data Processing', 200, 350),
+      _createIcon('Graph Database', 'Database & Storage', 400, 350),
+      _createIcon('Ranking Engine', 'Data Processing', 600, 250),
+      _createIcon('Monitoring System', 'Data Processing', 600, 450),
+      _createIcon('Data Warehouse', 'Database & Storage', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Pages'),
@@ -1019,15 +1202,40 @@ Age-based             Older = less frequent
 Importance-based      High PageRank = more often
 Combined              Best of all worlds
 ```
+
+### Icons Explained
+**Scheduler** - Triggers re-crawl jobs based on calculated timing.
+
+**Analytics Service** - Records when pages changed historically.
+
+**ML Model** - Uses history to estimate when page will change next.
+
+**Ranking Engine** - Combines importance and freshness need into priority score.
+
+**Crawl Queue** - Queue where scheduled URLs wait for re-crawling.
+
+**Web Server** - Downloads the page for re-crawl.
+
+**Duplicate Detection** - Compares new content to stored version to detect changes.
+
+### How They Work Together
+1. **Scheduler** checks which pages are due for re-crawl
+2. **Analytics Service** provides historical change data
+3. **ML Model** estimates next change time
+4. **Ranking Engine** scores by importance × freshness need
+5. Scheduled URLs added to **Crawl Queue**
+6. **Web Server** re-downloads the page
+7. **Duplicate Detection** compares to stored version
+8. If changed, updates storage and **Analytics Service** learns new pattern
 ''',
     'icons': [
       _createIcon('Scheduler', 'System Utilities', 50, 350),
-      _createIcon('Change Tracker', 'Data Processing', 200, 250),
-      _createIcon('Change Predictor', 'Data Processing', 200, 450),
-      _createIcon('Priority Calculator', 'Data Processing', 400, 350),
-      _createIcon('URL Frontier', 'Message Systems', 600, 350),
-      _createIcon('HTTP Fetcher', 'Networking', 750, 350),
-      _createIcon('Diff Detector', 'Data Processing', 900, 350),
+      _createIcon('Analytics Service', 'Data Processing', 200, 250),
+      _createIcon('ML Model', 'Data Processing', 200, 450),
+      _createIcon('Ranking Engine', 'Data Processing', 400, 350),
+      _createIcon('Crawl Queue', 'Message Systems', 600, 350),
+      _createIcon('Web Server', 'Networking', 750, 350),
+      _createIcon('Duplicate Detection', 'Data Processing', 900, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'History'),
@@ -1097,19 +1305,52 @@ Re-crawl cycle: 30 days
 3. **Deduplicate Early**: Save resources
 4. **Prioritize Smart**: Important pages first
 5. **Stay Fresh**: Adaptive re-crawling
+
+### Icons Explained
+**URL Discovery** - Initial URLs that bootstrap the crawler.
+
+**Scheduler** - Schedules re-crawls based on change patterns.
+
+**Crawl Queue** - Priority queue of URLs waiting to be crawled.
+
+**Cache** - Cached robots.txt rules for each domain.
+
+**Crawl Coordinator** - Worker that fetches pages respecting politeness.
+
+**Content Extractor** - Extracts content and links from downloaded HTML.
+
+**Duplicate Detection** - Detects and filters duplicate/similar content.
+
+**Blob Storage** - Database storing all crawled page content.
+
+**Search Engine** - Creates inverted index for search.
+
+**Search Engine** - Final searchable index of web content.
+
+**Ranking Engine** - Computes page importance from link structure.
+
+### How They Work Together
+1. **URL Discovery** and **Scheduler** feed URLs to **Crawl Queue**
+2. **Crawl Coordinator** checks **Cache** for politeness
+3. **Crawl Coordinator** downloads page, sends to **Content Extractor**
+4. **Content Extractor** extracts links (back to frontier) and content
+5. **Duplicate Detection** filters duplicates
+6. Clean content stored in **Blob Storage**
+7. **Search Engine** creates **Search Engine** from documents
+8. **Ranking Engine** computes page importance for ranking
 ''',
     'icons': [
-      _createIcon('Seed URLs', 'Data Processing', 50, 200),
+      _createIcon('URL Discovery', 'Data Processing', 50, 200),
       _createIcon('Scheduler', 'System Utilities', 50, 400),
-      _createIcon('URL Frontier', 'Message Systems', 200, 300),
-      _createIcon('Robots Cache', 'Caching,Performance', 350, 200),
-      _createIcon('Crawler Worker', 'Application Services', 350, 400),
-      _createIcon('HTML Parser', 'Data Processing', 500, 300),
-      _createIcon('Dedup Engine', 'Data Processing', 650, 200),
-      _createIcon('Document Store', 'Database & Storage', 650, 400),
-      _createIcon('Index Builder', 'Data Processing', 800, 300),
-      _createIcon('Search Index', 'Database & Storage', 950, 200),
-      _createIcon('PageRank Engine', 'Data Processing', 950, 400),
+      _createIcon('Crawl Queue', 'Message Systems', 200, 300),
+      _createIcon('Cache', 'Caching,Performance', 350, 200),
+      _createIcon('Crawl Coordinator', 'Application Services', 350, 400),
+      _createIcon('Content Extractor', 'Data Processing', 500, 300),
+      _createIcon('Duplicate Detection', 'Data Processing', 650, 200),
+      _createIcon('Blob Storage', 'Database & Storage', 650, 400),
+      _createIcon('Search Engine', 'Data Processing', 800, 300),
+      _createIcon('Search Engine', 'Database & Storage', 950, 200),
+      _createIcon('Ranking Engine', 'Data Processing', 950, 400),
     ],
     'connections': [
       _createConnection(0, 2, label: 'Seed'),

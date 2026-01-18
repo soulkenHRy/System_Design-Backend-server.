@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import './floating_binary_background.dart';
 import 'package:google_fonts/google_fonts.dart';
 import './quiz_statistics.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math';
 
 class PersonalStatScreen extends StatelessWidget {
   String _formatDate(DateTime date) {
@@ -26,7 +26,10 @@ class PersonalStatScreen extends StatelessWidget {
           Text(
             label,
             style: GoogleFonts.saira(
-              textStyle: const TextStyle(fontSize: 18, color: Colors.white),
+              textStyle: const TextStyle(
+                fontSize: 18,
+                color: Color(0xFFFFE4B5),
+              ),
             ),
           ),
           Text(
@@ -34,7 +37,7 @@ class PersonalStatScreen extends StatelessWidget {
             style: GoogleFonts.saira(
               textStyle: const TextStyle(
                 fontSize: 18,
-                color: Colors.white,
+                color: Color(0xFFFFE4B5),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -50,16 +53,19 @@ class PersonalStatScreen extends StatelessWidget {
         height: 200,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          color: const Color(0xFF3D2817),
+          borderRadius: BorderRadius.circular(0),
+          border: Border.all(color: const Color(0xFFFFE4B5).withOpacity(0.3)),
         ),
         child: Center(
           child: Text(
             'No quiz history yet\nTake a quiz to see your progress!',
             textAlign: TextAlign.center,
             style: GoogleFonts.saira(
-              textStyle: const TextStyle(fontSize: 16, color: Colors.white),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFFFFE4B5),
+              ),
             ),
           ),
         ),
@@ -75,9 +81,9 @@ class PersonalStatScreen extends StatelessWidget {
       height: 250,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        color: const Color(0xFF3D2817),
+        borderRadius: BorderRadius.circular(0),
+        border: Border.all(color: const Color(0xFFFFE4B5).withOpacity(0.3)),
       ),
       child: Column(
         children: [
@@ -86,7 +92,7 @@ class PersonalStatScreen extends StatelessWidget {
             style: GoogleFonts.saira(
               textStyle: const TextStyle(
                 fontSize: 16,
-                color: Colors.white,
+                color: Color(0xFFFFE4B5),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -256,203 +262,287 @@ class PersonalStatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Your Personal Stats',
-          style: GoogleFonts.saira(
-            textStyle: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+      body: Container(
+        decoration: const BoxDecoration(
+          // Cozy pixel-like gradient background
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF2C1810), // Dark brown
+              Color(0xFF3D2817), // Medium brown
+              Color(0xFF4A3420), // Light brown
+              Color(0xFF5C4129), // Tan
+            ],
+            stops: [0.0, 0.3, 0.7, 1.0],
           ),
         ),
-        backgroundColor: Colors.black.withOpacity(0.7),
-      ),
-      body: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color.fromARGB(255, 82, 0, 105),
-                  Color.fromARGB(255, 6, 4, 4),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-          const FloatingBinaryBackground(),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: QuizStatistics.getStatistics(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData) {
-                  return Center(
-                    child: Text(
-                      'No quiz attempts yet',
-                      style: GoogleFonts.saira(
-                        textStyle: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                final stats = snapshot.data!;
-                final latest = stats['latest'] as QuizStatistics;
-                final best = stats['best'] as QuizStatistics;
-                final totalQuizzes = stats['totalQuizzes'] as int;
-
-                // Check if user has taken any quizzes
-                if (totalQuizzes == 0 &&
-                    latest.score == 0 &&
-                    latest.totalQuestions == 0) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          children: [
+            // Cozy pixel-style stars/dots background
+            ...List.generate(40, (index) {
+              final random = Random(index);
+              return Positioned(
+                left: random.nextDouble() * screenWidth,
+                top: random.nextDouble() * screenHeight,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFE4B5).withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Header with back button
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
                       children: [
-                        Icon(
-                          Icons.quiz,
-                          size: 80,
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          'No quiz attempts yet',
-                          style: GoogleFonts.saira(
-                            textStyle: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4A3420),
+                            borderRadius: BorderRadius.circular(0),
+                            border: Border.all(
+                              color: const Color(0xFFFFE4B5),
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 0,
+                                offset: const Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.arrow_back_ios,
+                                  color: Color(0xFFFFE4B5),
+                                  size: 24,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Take a quiz to see your statistics!',
-                          style: GoogleFonts.saira(
-                            textStyle: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white.withOpacity(0.7),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Your Personal Stats',
+                            style: GoogleFonts.saira(
+                              textStyle: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFFFE4B5),
+                                fontFamily: 'monospace',
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ),
-                  );
-                }
+                  ),
+                  // Content
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: FutureBuilder<Map<String, dynamic>>(
+                        future: QuizStatistics.getStatistics(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFFFE4B5),
+                              ),
+                            );
+                          }
 
-                return FutureBuilder<List<QuizStatistics>>(
-                  future: QuizStatistics.getQuizHistory(),
-                  builder: (context, historySnapshot) {
-                    final history = historySnapshot.data ?? [];
+                          if (!snapshot.hasData) {
+                            return Center(
+                              child: Text(
+                                'No quiz attempts yet',
+                                style: GoogleFonts.saira(
+                                  textStyle: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFFE4B5),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
 
-                    return SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 20),
-                          Text(
-                            'Total Quizzes Taken: $totalQuizzes',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                          final stats = snapshot.data!;
+                          final latest = stats['latest'] as QuizStatistics;
+                          final best = stats['best'] as QuizStatistics;
+                          final totalQuizzes = stats['totalQuizzes'] as int;
+
+                          // Check if user has taken any quizzes
+                          if (totalQuizzes == 0 &&
+                              latest.score == 0 &&
+                              latest.totalQuestions == 0) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.quiz,
+                                    size: 80,
+                                    color: const Color(
+                                      0xFFFFE4B5,
+                                    ).withOpacity(0.5),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'No quiz attempts yet',
+                                    style: GoogleFonts.saira(
+                                      textStyle: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFFFE4B5),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Take a quiz to see your statistics!',
+                                    style: GoogleFonts.saira(
+                                      textStyle: TextStyle(
+                                        fontSize: 16,
+                                        color: const Color(
+                                          0xFFFFE4B5,
+                                        ).withOpacity(0.7),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          // Line Chart Section
-                          Text(
-                            'Performance History:',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 22,
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _buildLineChart(history),
-                          const SizedBox(height: 40),
-                          Text(
-                            'Latest Quiz Result:',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 22,
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _buildStatRow(
-                            'Score',
-                            '${latest.score}/${latest.totalQuestions}',
-                          ),
-                          _buildStatRow(
-                            'Percentage',
-                            '${latest.percentage.toStringAsFixed(1)}%',
-                          ),
-                          _buildStatRow(
-                            'Questions Attempted',
-                            '${latest.attempted}',
-                          ),
-                          _buildStatRow(
-                            'Time Taken',
-                            _formatTime(latest.timeTakenInSeconds),
-                          ),
-                          _buildStatRow('Date', _formatDate(latest.dateTime)),
-                          const SizedBox(height: 40),
-                          Text(
-                            'Best Performance:',
-                            style: GoogleFonts.saira(
-                              textStyle: const TextStyle(
-                                fontSize: 22,
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _buildStatRow(
-                            'Score',
-                            '${best.score}/${best.totalQuestions}',
-                          ),
-                          _buildStatRow(
-                            'Percentage',
-                            '${best.percentage.toStringAsFixed(1)}%',
-                          ),
-                          _buildStatRow(
-                            'Time Taken',
-                            _formatTime(best.timeTakenInSeconds),
-                          ),
-                          _buildStatRow('Date', _formatDate(best.dateTime)),
-                          const SizedBox(height: 20),
-                        ],
+                            );
+                          }
+
+                          return FutureBuilder<List<QuizStatistics>>(
+                            future: QuizStatistics.getQuizHistory(),
+                            builder: (context, historySnapshot) {
+                              final history = historySnapshot.data ?? [];
+
+                              return SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      'Total Quizzes Taken: $totalQuizzes',
+                                      style: GoogleFonts.saira(
+                                        textStyle: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFFFFE4B5),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 30),
+                                    // Line Chart Section
+                                    Text(
+                                      'Performance History:',
+                                      style: GoogleFonts.saira(
+                                        textStyle: const TextStyle(
+                                          fontSize: 22,
+                                          color: Color(0xFF4CAF50),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _buildLineChart(history),
+                                    const SizedBox(height: 40),
+                                    Text(
+                                      'Latest Quiz Result:',
+                                      style: GoogleFonts.saira(
+                                        textStyle: const TextStyle(
+                                          fontSize: 22,
+                                          color: Color(0xFF4CAF50),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _buildStatRow(
+                                      'Score',
+                                      '${latest.score}/${latest.totalQuestions}',
+                                    ),
+                                    _buildStatRow(
+                                      'Percentage',
+                                      '${latest.percentage.toStringAsFixed(1)}%',
+                                    ),
+                                    _buildStatRow(
+                                      'Questions Attempted',
+                                      '${latest.attempted}',
+                                    ),
+                                    _buildStatRow(
+                                      'Time Taken',
+                                      _formatTime(latest.timeTakenInSeconds),
+                                    ),
+                                    _buildStatRow(
+                                      'Date',
+                                      _formatDate(latest.dateTime),
+                                    ),
+                                    const SizedBox(height: 40),
+                                    Text(
+                                      'Best Performance:',
+                                      style: GoogleFonts.saira(
+                                        textStyle: const TextStyle(
+                                          fontSize: 22,
+                                          color: Color(0xFF4CAF50),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _buildStatRow(
+                                      'Score',
+                                      '${best.score}/${best.totalQuestions}',
+                                    ),
+                                    _buildStatRow(
+                                      'Percentage',
+                                      '${best.percentage.toStringAsFixed(1)}%',
+                                    ),
+                                    _buildStatRow(
+                                      'Time Taken',
+                                      _formatTime(best.timeTakenInSeconds),
+                                    ),
+                                    _buildStatRow(
+                                      'Date',
+                                      _formatDate(best.dateTime),
+                                    ),
+                                    const SizedBox(height: 20),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
-                    );
-                  },
-                );
-              },
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

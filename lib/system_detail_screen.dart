@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import './system_design_canvas_screen_fixed.dart';
+import 'dart:math';
 
 class SystemDetailScreen extends StatelessWidget {
   final String systemName;
@@ -18,97 +19,152 @@ class SystemDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
+          // Cozy pixel-like gradient background
           gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              Color.fromARGB(255, 82, 0, 105),
-              Color.fromARGB(255, 6, 4, 4),
+              Color(0xFF2C1810), // Dark brown
+              Color(0xFF3D2817), // Medium brown
+              Color(0xFF4A3420), // Light brown
+              Color(0xFF5C4129), // Tan
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            stops: [0.0, 0.3, 0.7, 1.0],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header with back button
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        systemName,
-                        style: GoogleFonts.saira(
-                          textStyle: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.settings_suggest,
-                        color: color,
-                        size: 28,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Content
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Concept Section
-                      _buildSectionCard(
-                        title: 'Concept',
-                        icon: Icons.lightbulb_outline,
-                        content: concept,
-                        color: color,
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // Key Problems Section
-                      _buildKeyProblemsCard(),
-
-                      const SizedBox(height: 20),
-
-                      // Start Designing Button
-                      _buildStartDesigningButton(context),
-
-                      const SizedBox(height: 20),
-
-                      // URL Shortener demo removed per user request.
-                    ],
+        child: Stack(
+          children: [
+            // Cozy pixel-style stars/dots background
+            ...List.generate(40, (index) {
+              final random = Random(index);
+              return Positioned(
+                left: random.nextDouble() * screenWidth,
+                top: random.nextDouble() * screenHeight,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFE4B5).withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
+              );
+            }),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Header with back button
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4A3420),
+                            borderRadius: BorderRadius.circular(0),
+                            border: Border.all(
+                              color: const Color(0xFFFFE4B5),
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 0,
+                                offset: const Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.arrow_back_ios,
+                                  color: Color(0xFFFFE4B5),
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            systemName,
+                            style: GoogleFonts.saira(
+                              textStyle: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFFFE4B5),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(0),
+                            border: Border.all(
+                              color: color.withOpacity(0.7),
+                              width: 1,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.settings_suggest,
+                            color: color,
+                            size: 28,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Concept Section
+                          _buildSectionCard(
+                            title: 'Concept',
+                            icon: Icons.lightbulb_outline,
+                            content: concept,
+                            color: color,
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Key Problems Section
+                          _buildKeyProblemsCard(),
+
+                          const SizedBox(height: 20),
+
+                          // Start Designing Button
+                          _buildStartDesigningButton(context),
+
+                          const SizedBox(height: 20),
+
+                          // URL Shortener demo removed per user request.
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -123,16 +179,16 @@ class SystemDetailScreen extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        color: const Color(0xFF4A3420),
+        borderRadius: BorderRadius.circular(0),
+        border: Border.all(color: const Color(0xFFFFE4B5), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 0,
+            offset: const Offset(3, 3),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -145,8 +201,8 @@ class SystemDetailScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
+                    color: color.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(0),
                   ),
                   child: Icon(icon, color: color, size: 24),
                 ),
@@ -157,7 +213,7 @@ class SystemDetailScreen extends StatelessWidget {
                     textStyle: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Color(0xFFFFE4B5),
                     ),
                   ),
                 ),
@@ -171,8 +227,8 @@ class SystemDetailScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFF3D2817),
+                borderRadius: BorderRadius.circular(0),
               ),
               child: Text(
                 content,
@@ -195,16 +251,16 @@ class SystemDetailScreen extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        color: const Color(0xFF4A3420),
+        borderRadius: BorderRadius.circular(0),
+        border: Border.all(color: const Color(0xFFFFE4B5), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 0,
+            offset: const Offset(3, 3),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -217,8 +273,8 @@ class SystemDetailScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
+                    color: color.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(0),
                   ),
                   child: Icon(
                     Icons.warning_amber_outlined,
@@ -233,7 +289,7 @@ class SystemDetailScreen extends StatelessWidget {
                     textStyle: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Color(0xFFFFE4B5),
                     ),
                   ),
                 ),
@@ -247,8 +303,8 @@ class SystemDetailScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFF3D2817),
+                borderRadius: BorderRadius.circular(0),
               ),
               child: Column(
                 children:
@@ -301,24 +357,21 @@ class SystemDetailScreen extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color.withOpacity(0.8), color.withOpacity(0.6)],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF4A3420),
+        borderRadius: BorderRadius.circular(0),
+        border: Border.all(color: color, width: 3),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 0,
+            offset: const Offset(4, 4),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(0),
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
@@ -333,7 +386,7 @@ class SystemDetailScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.design_services, color: Colors.white, size: 28),
+                Icon(Icons.design_services, color: color, size: 28),
                 const SizedBox(width: 12),
                 Text(
                   'Start Designing',
@@ -341,12 +394,13 @@ class SystemDetailScreen extends StatelessWidget {
                     textStyle: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Color(0xFFFFE4B5),
+                      fontFamily: 'monospace',
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.arrow_forward, color: Colors.white, size: 24),
+                Icon(Icons.arrow_forward, color: color, size: 24),
               ],
             ),
           ),

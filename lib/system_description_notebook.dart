@@ -8,12 +8,98 @@ import 'ai_feedback_system.dart';
 import 'evaluation_result.dart';
 import 'leaderboard_api_service.dart';
 
+// Data class for canvas validation
+class CanvasValidationData {
+  final List<Map<String, dynamic>> icons;
+  final List<Map<String, dynamic>> connections;
+
+  CanvasValidationData({required this.icons, required this.connections});
+}
+
+// Validation result with penalty info
+class CanvasValidationResult {
+  final List<String> warnings;
+  final int blockedIconCount;
+  final int isolatedIconCount;
+  final int totalIconCount;
+  final int totalConnectionCount;
+  final int activeConnectionCount; // Connections with data flow
+  final bool hasDataSource;
+
+  CanvasValidationResult({
+    required this.warnings,
+    required this.blockedIconCount,
+    required this.isolatedIconCount,
+    required this.totalIconCount,
+    required this.totalConnectionCount,
+    required this.activeConnectionCount,
+    required this.hasDataSource,
+  });
+
+  // Calculate score penalty (0-30 points max penalty)
+  int get scorePenalty {
+    int penalty = 0;
+
+    // No data source = major penalty
+    if (!hasDataSource && totalIconCount > 0) {
+      penalty += 15;
+    }
+
+    // Blocked icons penalty (up to 10 points)
+    if (totalIconCount > 0) {
+      final blockedRatio = blockedIconCount / totalIconCount;
+      penalty += (blockedRatio * 10).round();
+    }
+
+    // Isolated icons penalty (up to 5 points)
+    if (totalIconCount > 0) {
+      final isolatedRatio = isolatedIconCount / totalIconCount;
+      penalty += (isolatedRatio * 5).round();
+    }
+
+    return penalty.clamp(0, 30);
+  }
+
+  // Data flow health percentage
+  int get dataFlowHealth {
+    if (totalConnectionCount == 0) return 0;
+    return ((activeConnectionCount / totalConnectionCount) * 100).round();
+  }
+
+  // Canvas score (0-50 points) based on data flow health
+  // More data flowing = higher score
+  int get canvasScore {
+    if (totalIconCount == 0) return 0;
+
+    int score = 0;
+
+    // Base score from data flow health (up to 30 points)
+    // Data flow health is based on active connections / total connections
+    score += ((dataFlowHealth / 100) * 30).round();
+
+    // Bonus for having a data source (10 points)
+    if (hasDataSource) {
+      score += 10;
+    }
+
+    // Bonus for connected components (up to 10 points)
+    // Fewer isolated icons = higher score
+    if (totalIconCount > 0) {
+      final connectedRatio = 1.0 - (isolatedIconCount / totalIconCount);
+      score += (connectedRatio * 10).round();
+    }
+
+    return score.clamp(0, 50);
+  }
+}
+
 class SystemDescriptionNotebook extends StatefulWidget {
   final String? systemId;
   final String? systemName;
   final List<String>? usedComponents;
-  final Function(String, String)?
-  onSubmitDesign; // Add callback for AI evaluation
+  final Function(String, String, CanvasValidationData?)?
+  onSubmitDesign; // Add callback for AI evaluation with canvas data
+  final CanvasValidationData? canvasData; // Canvas data for validation
 
   const SystemDescriptionNotebook({
     super.key,
@@ -21,6 +107,7 @@ class SystemDescriptionNotebook extends StatefulWidget {
     this.systemName,
     this.usedComponents,
     this.onSubmitDesign, // Add the callback parameter
+    this.canvasData, // Canvas data for validation
   });
 
   @override
@@ -95,6 +182,21 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
   }
 
   void _saveNote() async {
+    // Check for duplicate notes across other systems
+    final currentNotes = _controller.text.trim();
+    if (currentNotes.length > 50) {
+      // Only check if notes are substantial
+      final duplicateSystem = await _checkForDuplicateNotes(currentNotes);
+      if (duplicateSystem != null) {
+        final shouldProceed = await _showDuplicateWarningDialog(
+          duplicateSystem,
+        );
+        if (!shouldProceed) {
+          return; // Don't save if user cancels
+        }
+      }
+    }
+
     // Save to specific system database for parallel comparison
     await SystemDatabaseManager.saveNotesToSpecificDatabase(
       displaySystemName,
@@ -104,6 +206,181 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
     // Also save to SharedPreferences for backward compatibility
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('systemNote_$currentSystemId', _controller.text);
+  }
+
+  /// Check if current notes are too similar to notes from other systems
+  /// Returns the name of the similar system if found, null otherwise
+  Future<String?> _checkForDuplicateNotes(String currentNotes) async {
+    final systemNames = [
+      'URL Shortener (e.g., TinyURL)',
+      'Pastebin Service (e.g., Pastebin.com)',
+      'Web Crawler',
+      'Social Media News Feed (e.g., Facebook, X/Twitter)',
+      'Video Streaming Service (e.g., Netflix, YouTube)',
+      'Ride-Sharing Service (e.g., Uber, Lyft)',
+      'Collaborative Editor (e.g., Google Docs, Figma)',
+      'Live Streaming Platform (e.g., Twitch, YouTube Live)',
+      'Global Gaming Leaderboard',
+    ];
+
+    for (final systemName in systemNames) {
+      // Skip the current system
+      if (systemName == displaySystemName) continue;
+
+      // Load notes from this system
+      final otherNotes =
+          await SystemDatabaseManager.loadNotesFromSpecificDatabase(systemName);
+
+      if (otherNotes != null && otherNotes.trim().length > 50) {
+        // Calculate similarity
+        final similarity = _calculateTextSimilarity(currentNotes, otherNotes);
+
+        if (similarity >= 0.70) {
+          // 70% or more similarity
+          return systemName;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Calculate text similarity between two strings (0.0 to 1.0)
+  /// Uses Jaccard similarity on word sets
+  double _calculateTextSimilarity(String text1, String text2) {
+    // Normalize texts: lowercase, remove special chars, split into words
+    final words1 = _normalizeAndTokenize(text1);
+    final words2 = _normalizeAndTokenize(text2);
+
+    if (words1.isEmpty || words2.isEmpty) return 0.0;
+
+    // Convert to sets for Jaccard similarity
+    final set1 = words1.toSet();
+    final set2 = words2.toSet();
+
+    // Jaccard similarity: intersection / union
+    final intersection = set1.intersection(set2).length;
+    final union = set1.union(set2).length;
+
+    return union > 0 ? intersection / union : 0.0;
+  }
+
+  /// Normalize text and split into words
+  Set<String> _normalizeAndTokenize(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^\w\s]'), ' ') // Remove punctuation
+        .split(RegExp(r'\s+'))
+        .where((word) => word.length > 2) // Ignore very short words
+        .toSet();
+  }
+
+  /// Show warning dialog when duplicate notes are detected
+  Future<bool> _showDuplicateWarningDialog(String similarSystemName) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1a1a2e),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Duplicate Design Detected',
+                  style: GoogleFonts.sourceCodePro(
+                    color: Colors.orange,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your notes are more than 70% similar to:',
+                  style: GoogleFonts.roboto(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.system_update_alt,
+                        color: Colors.orange,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          similarSystemName,
+                          style: GoogleFonts.sourceCodePro(
+                            color: Colors.orange,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Each system should have unique design notes. Would you like to:',
+                  style: GoogleFonts.roboto(
+                    color: Colors.white70,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(
+                  'Go Back & Edit',
+                  style: GoogleFonts.roboto(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.withOpacity(0.2),
+                  foregroundColor: Colors.orange,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(
+                  'Save Anyway',
+                  style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    return result ?? false;
   }
 
   void _loadEvaluation() async {
@@ -353,6 +630,343 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
       return;
     }
 
+    // Validate the canvas design before submitting
+    if (widget.canvasData != null) {
+      final validationResult = _validateCanvasDesign();
+      if (validationResult.warnings.isNotEmpty) {
+        _showValidationWarningDialog(validationResult);
+        return;
+      }
+    }
+
+    _proceedWithSubmission();
+  }
+
+  // Validate the canvas design for issues
+  CanvasValidationResult _validateCanvasDesign() {
+    final warnings = <String>[];
+    final canvasData = widget.canvasData;
+    if (canvasData == null) {
+      return CanvasValidationResult(
+        warnings: [],
+        blockedIconCount: 0,
+        isolatedIconCount: 0,
+        totalIconCount: 0,
+        totalConnectionCount: 0,
+        activeConnectionCount: 0,
+        hasDataSource: false,
+      );
+    }
+
+    final icons = canvasData.icons;
+    final connections = canvasData.connections;
+
+    // Data source icons - same as defined in the canvas screen
+    const dataSourceIcons = {
+      'Mobile Client',
+      'Desktop Client',
+      'Tablet Client',
+      'Web Browser',
+      'User',
+      'Admin User',
+      'Group Users',
+      'Third Party API',
+      'Weather Service',
+      'Social Media API',
+      'GPS Tracking',
+      'Scheduler',
+      'Alert System',
+      'Push Notification',
+    };
+
+    // Build connection graph for analysis
+    Map<int, Set<int>> outgoingConnections = {};
+    Set<int> connectedIconsAsTail = {};
+    Set<int> connectedIconsAsHead = {};
+    int greenConnectionCount = 0;
+
+    for (final conn in connections) {
+      final fromIndex = conn['fromIconIndex'] as int?;
+      final toIndex = conn['toIconIndex'] as int?;
+      final isGreen = conn['isGreen'] as bool? ?? false;
+
+      if (fromIndex != null && toIndex != null && isGreen) {
+        greenConnectionCount++;
+        outgoingConnections.putIfAbsent(fromIndex, () => {});
+        outgoingConnections[fromIndex]!.add(toIndex);
+
+        connectedIconsAsTail.add(fromIndex);
+        connectedIconsAsHead.add(toIndex);
+      }
+    }
+
+    // Find source icons in the design
+    Set<int> sourceIconIndices = {};
+    for (int i = 0; i < icons.length; i++) {
+      final iconName = icons[i]['name'] as String? ?? '';
+      if (dataSourceIcons.contains(iconName)) {
+        sourceIconIndices.add(i);
+      }
+    }
+
+    // Check 1: Icons not connected to any data source (data flow blockage)
+    Set<int> iconsReachableFromSource = Set.from(sourceIconIndices);
+    List<int> queue = sourceIconIndices.toList();
+
+    while (queue.isNotEmpty) {
+      final currentIcon = queue.removeAt(0);
+      final nextIcons = outgoingConnections[currentIcon] ?? {};
+
+      for (final nextIcon in nextIcons) {
+        if (!iconsReachableFromSource.contains(nextIcon)) {
+          iconsReachableFromSource.add(nextIcon);
+          queue.add(nextIcon);
+        }
+      }
+    }
+
+    // Find icons that are NOT reachable from any data source
+    List<String> blockedIcons = [];
+    for (int i = 0; i < icons.length; i++) {
+      final iconName = icons[i]['name'] as String? ?? '';
+      if (!sourceIconIndices.contains(i) &&
+          !iconsReachableFromSource.contains(i)) {
+        // This icon is not a source and not reachable from any source
+        if (connectedIconsAsHead.contains(i) ||
+            connectedIconsAsTail.contains(i)) {
+          // It has connections but still not reachable - data flow blockage
+          blockedIcons.add(iconName);
+        }
+      }
+    }
+
+    if (blockedIcons.isNotEmpty) {
+      warnings.add(
+        '⚠️ DATA FLOW BLOCKAGE: The following icons are not connected to any data source:\n'
+        '   ${blockedIcons.take(5).join(', ')}${blockedIcons.length > 5 ? ' and ${blockedIcons.length - 5} more' : ''}',
+      );
+    }
+
+    // Check 2: Isolated icons (no connections at all)
+    List<String> isolatedIcons = [];
+    for (int i = 0; i < icons.length; i++) {
+      final iconName = icons[i]['name'] as String? ?? '';
+      if (!connectedIconsAsTail.contains(i) &&
+          !connectedIconsAsHead.contains(i)) {
+        isolatedIcons.add(iconName);
+      }
+    }
+
+    if (isolatedIcons.isNotEmpty) {
+      warnings.add(
+        '⚠️ ISOLATED ICONS: The following icons have no connections:\n'
+        '   ${isolatedIcons.take(5).join(', ')}${isolatedIcons.length > 5 ? ' and ${isolatedIcons.length - 5} more' : ''}',
+      );
+    }
+
+    // Check 3: No data sources in the design
+    if (sourceIconIndices.isEmpty && icons.isNotEmpty) {
+      warnings.add(
+        '⚠️ NO DATA SOURCE: Your design has no data source icons (like Mobile Client, User, Web Browser, etc.).\n'
+        '   Without a data source, data flow cannot be visualized.',
+      );
+    }
+
+    // Count active connections (connections where tail icon is reachable from source)
+    int activeConnectionCount = 0;
+    for (final conn in connections) {
+      final fromIndex = conn['fromIconIndex'] as int?;
+      final isGreen = conn['isGreen'] as bool? ?? false;
+      if (fromIndex != null &&
+          isGreen &&
+          iconsReachableFromSource.contains(fromIndex)) {
+        activeConnectionCount++;
+      }
+    }
+
+    return CanvasValidationResult(
+      warnings: warnings,
+      blockedIconCount: blockedIcons.length,
+      isolatedIconCount: isolatedIcons.length,
+      totalIconCount: icons.length,
+      totalConnectionCount: greenConnectionCount,
+      activeConnectionCount: activeConnectionCount,
+      hasDataSource: sourceIconIndices.isNotEmpty,
+    );
+  }
+
+  // Show warning dialog and ask user to confirm or fix
+  void _showValidationWarningDialog(CanvasValidationResult result) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2C1810),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFFFF6B35), width: 2),
+            ),
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFFF6B35),
+                  size: 28,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Design Issues Found',
+                  style: GoogleFonts.saira(
+                    color: const Color(0xFFFFE4B5),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Score penalty summary
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.5)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.trending_down,
+                              color: Colors.red,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Estimated Score Penalty: -${result.scorePenalty} points',
+                              style: GoogleFonts.saira(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              result.dataFlowHealth >= 70
+                                  ? Icons.bolt
+                                  : Icons.bolt_outlined,
+                              color:
+                                  result.dataFlowHealth >= 70
+                                      ? Colors.green
+                                      : Colors.orange,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Data Flow Health: ${result.dataFlowHealth}% (${result.activeConnectionCount}/${result.totalConnectionCount} active)',
+                                style: GoogleFonts.saira(
+                                  color:
+                                      result.dataFlowHealth >= 70
+                                          ? Colors.green
+                                          : Colors.orange,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Issues detected:',
+                    style: GoogleFonts.robotoSlab(
+                      color: const Color(0xFFFFE4B5),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...result.warnings.map(
+                    (w) => Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF6B35).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFFF6B35).withOpacity(0.4),
+                        ),
+                      ),
+                      child: Text(
+                        w,
+                        style: GoogleFonts.robotoSlab(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tip: Connect all icons in a chain from data sources (like Mobile Client or User) to ensure data flows through your entire system.',
+                    style: GoogleFonts.robotoSlab(
+                      color: Colors.white54,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFFFE4B5),
+                ),
+                child: Text(
+                  'Go Back & Fix',
+                  style: GoogleFonts.saira(fontSize: 14),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _proceedWithSubmission();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Submit Anyway',
+                  style: GoogleFonts.saira(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _proceedWithSubmission() {
     // Auto-save notes before submitting for evaluation
     _saveNote();
 
@@ -376,10 +990,11 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
         '📝📝📝 NOTEBOOK: Built comprehensive notes: ${comprehensiveNotes.length} characters 📝📝📝',
       );
 
-      // Call the main canvas submit function (same as the main submit button)
+      // Call the main canvas submit function with canvas data for scoring
       widget.onSubmitDesign!(
         "Design: ${displaySystemName}",
         comprehensiveNotes,
+        widget.canvasData, // Pass canvas data for 50/50 scoring
       );
 
       // Close the notebook since evaluation will happen in the main screen
@@ -408,10 +1023,38 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
         canvasComponents: widget.usedComponents,
       );
 
+      // Calculate canvas score (50% of total) based on data flow health
+      int canvasScore = 0;
+      if (widget.canvasData != null) {
+        final validationResult = _validateCanvasDesign();
+        canvasScore = validationResult.canvasScore; // 0-50 points
+      }
+
+      // Calculate notes score (50% of total) from AI evaluation
+      // AI originally gives 0-100, we scale to 0-50
+      final notesScore = ((aiResult.score / 100) * 50).round().clamp(0, 50);
+
+      // Combined total score
+      final totalScore = canvasScore + notesScore;
+
+      // Build comprehensive feedback showing both scores
+      String feedback = aiResult.feedback;
+      feedback += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      feedback += '📊 SCORE BREAKDOWN\n';
+      feedback += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      feedback += '🎨 Canvas Design Score: $canvasScore/50\n';
+      feedback += '   (Based on data flow & component connectivity)\n';
+      feedback += '📝 Notes Description Score: $notesScore/50\n';
+      feedback += '   (Based on system design explanation quality)\n';
+      feedback += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      feedback += '🏆 TOTAL SCORE: $totalScore/100\n';
+
       // Convert AIFeedbackResult to EvaluationResult for compatibility
       final result = EvaluationResult(
-        score: aiResult.score,
-        feedback: aiResult.feedback,
+        score: totalScore,
+        canvasScore: canvasScore,
+        notesScore: notesScore,
+        feedback: feedback,
         isSystemDesignRelated: true,
       );
 
@@ -441,10 +1084,30 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
       context: context,
       builder:
           (context) => AlertDialog(
-            backgroundColor: const Color.fromARGB(255, 30, 30, 30),
-            title: Text(
-              'Evaluation Results',
-              style: GoogleFonts.saira(color: Colors.white),
+            backgroundColor: const Color(0xFF2C1810),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFFFF6B35), width: 2),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  result.score >= 70 ? Icons.emoji_events : Icons.assessment,
+                  color:
+                      result.score >= 70
+                          ? Colors.amber
+                          : const Color(0xFFFF6B35),
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Evaluation Results',
+                  style: GoogleFonts.saira(
+                    color: const Color(0xFFFFE4B5),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             content: SingleChildScrollView(
               child: Container(
@@ -454,13 +1117,38 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Score Display
-                    Center(
-                      child: Text(
-                        '${result.score}/100',
-                        style: GoogleFonts.saira(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color:
+                            result.score >= 70
+                                ? Colors.green.withOpacity(0.2)
+                                : result.score >= 40
+                                ? Colors.orange.withOpacity(0.2)
+                                : Colors.red.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color:
+                              result.score >= 70
+                                  ? Colors.green.withOpacity(0.5)
+                                  : result.score >= 40
+                                  ? Colors.orange.withOpacity(0.5)
+                                  : Colors.red.withOpacity(0.5),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${result.score}/100',
+                          style: GoogleFonts.saira(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color:
+                                result.score >= 70
+                                    ? Colors.green
+                                    : result.score >= 40
+                                    ? Colors.orange
+                                    : Colors.red,
+                          ),
                         ),
                       ),
                     ),
@@ -469,10 +1157,10 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
                     // Feedback
                     Text(
                       result.feedback,
-                      style: GoogleFonts.sourceCodePro(
+                      style: GoogleFonts.robotoSlab(
                         fontSize: 14,
-                        color: Colors.white70,
-                        height: 1.4,
+                        color: const Color(0xFFFFE4B5).withOpacity(0.9),
+                        height: 1.5,
                       ),
                     ),
                   ],
@@ -480,11 +1168,18 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
               ),
             ),
             actions: [
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
                 child: Text(
                   'Close',
-                  style: GoogleFonts.saira(color: Colors.blue),
+                  style: GoogleFonts.saira(fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -508,182 +1203,219 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
         return true;
       },
       child: Scaffold(
-        backgroundColor: const Color.fromARGB(255, 6, 4, 4),
-        body: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color.fromARGB(255, 82, 0, 105),
-                      Color.fromARGB(255, 42, 0, 52),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.topRight,
-                  ),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        _saveNote();
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '$displaySystemName - Notes',
-                        style: GoogleFonts.saira(
-                          textStyle: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: _isEvaluating ? null : _submitForEvaluation,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade600,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey.shade600,
-                      ),
-                      child:
-                          _isEvaluating
-                              ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                              : Text(
-                                widget.onSubmitDesign != null
-                                    ? 'Submit for AI Evaluation'
-                                    : 'Submit',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Simple text area for notes
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF2C1810), // Dark brown
+                Color(0xFF3D2817), // Medium brown
+                Color(0xFF4A3420), // Light brown
+                Color(0xFF5C4129), // Tan
+              ],
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 20, 20, 20),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF2C1810),
+                        const Color(0xFF3D2817).withOpacity(0.9),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
                     ),
-                  ),
-                  child: TextField(
-                    controller: _controller,
-                    onChanged: (text) {
-                      // Auto-save as user types
-                      _saveNote();
-                    },
-                    maxLines: null,
-                    expands: true,
-                    style: GoogleFonts.sourceCodePro(
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white,
-                        height: 1.5,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.5),
+                        width: 2,
                       ),
                     ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      hintText: 'Write your system notes here...',
-                      hintStyle: TextStyle(color: Colors.grey),
-                    ),
-                    contextMenuBuilder: (context, editableTextState) {
-                      final List<ContextMenuButtonItem> buttonItems =
-                          editableTextState.contextMenuButtonItems;
-                      // Remove paste button
-                      buttonItems.removeWhere(
-                        (item) => item.type == ContextMenuButtonType.paste,
-                      );
-                      return AdaptiveTextSelectionToolbar.buttonItems(
-                        anchors: editableTextState.contextMenuAnchors,
-                        buttonItems: buttonItems,
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              // Simple evaluation message
-              if (_lastEvaluation != null)
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.withOpacity(0.5)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.assignment_turned_in,
-                        color: Colors.white70,
-                        size: 20,
+                      IconButton(
+                        onPressed: () {
+                          _saveNote();
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: Color(0xFFFFE4B5),
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Score: ${_lastEvaluation!.score}/100',
-                        style: GoogleFonts.saira(
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          '$displaySystemName - Notes',
+                          style: GoogleFonts.saira(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFFFE4B5),
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => _showEvaluationResult(_lastEvaluation!),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'View Feedback',
-                            style: GoogleFonts.saira(
-                              fontSize: 12,
-                              color: Colors.blue.shade300,
-                            ),
+                      ElevatedButton(
+                        onPressed: _isEvaluating ? null : _submitForEvaluation,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF6B35),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey.shade600,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
+                        child:
+                            _isEvaluating
+                                ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                                : Text(
+                                  widget.onSubmitDesign != null
+                                      ? 'Submit for AI Evaluation'
+                                      : 'Submit',
+                                  style: GoogleFonts.saira(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                       ),
                     ],
                   ),
                 ),
-              const SizedBox(height: 16),
-            ],
+
+                // Simple text area for notes
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C1810).withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFF6B35).withOpacity(0.3),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _controller,
+                      onChanged: (text) {
+                        // Auto-save as user types
+                        _saveNote();
+                      },
+                      maxLines: null,
+                      expands: true,
+                      style: GoogleFonts.robotoSlab(
+                        fontSize: 14,
+                        color: const Color(0xFFFFE4B5),
+                        height: 1.6,
+                      ),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText:
+                            'Write your system design notes here...\n\nDescribe:\n• System components and their roles\n• Data flow between components\n• Scalability considerations\n• Trade-offs in your design',
+                        hintStyle: GoogleFonts.robotoSlab(
+                          color: const Color(0xFFFFE4B5).withOpacity(0.4),
+                          fontSize: 14,
+                        ),
+                      ),
+                      contextMenuBuilder: (context, editableTextState) {
+                        final List<ContextMenuButtonItem> buttonItems =
+                            editableTextState.contextMenuButtonItems;
+                        // Remove paste button
+                        buttonItems.removeWhere(
+                          (item) => item.type == ContextMenuButtonType.paste,
+                        );
+                        return AdaptiveTextSelectionToolbar.buttonItems(
+                          anchors: editableTextState.contextMenuAnchors,
+                          buttonItems: buttonItems,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // Simple evaluation message
+                if (_lastEvaluation != null)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C1810),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFF6B35).withOpacity(0.5),
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.emoji_events,
+                          color:
+                              _lastEvaluation!.score >= 70
+                                  ? Colors.amber
+                                  : const Color(0xFFFF6B35),
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Score: ${_lastEvaluation!.score}/100',
+                          style: GoogleFonts.saira(
+                            fontSize: 16,
+                            color: const Color(0xFFFFE4B5),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => _showEvaluationResult(_lastEvaluation!),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF6B35),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'View Feedback',
+                              style: GoogleFonts.saira(
+                                fontSize: 12,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ),
       ),

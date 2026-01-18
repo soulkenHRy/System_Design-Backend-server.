@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import './system_detail_screen.dart';
 import './view_demos_screen.dart';
+import 'dart:math';
 
 class DesignSystemScreen extends StatelessWidget {
   const DesignSystemScreen({super.key});
@@ -133,131 +134,198 @@ class DesignSystemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
+          // Cozy pixel-like gradient background
           gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              Color.fromARGB(255, 82, 0, 105),
-              Color.fromARGB(255, 6, 4, 4),
+              Color(0xFF2C1810), // Dark brown
+              Color(0xFF3D2817), // Medium brown
+              Color(0xFF4A3420), // Light brown
+              Color(0xFF5C4129), // Tan
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            stops: [0.0, 0.3, 0.7, 1.0],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header with back button
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        color: Colors.white,
-                        size: 24,
+        child: Stack(
+          children: [
+            // Cozy pixel-style stars/dots background
+            ...List.generate(40, (index) {
+              final random = Random(index);
+              return Positioned(
+                left: random.nextDouble() * screenWidth,
+                top: random.nextDouble() * screenHeight,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFE4B5).withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Header with back button
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4A3420),
+                            borderRadius: BorderRadius.circular(0),
+                            border: Border.all(
+                              color: const Color(0xFFFFE4B5),
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 0,
+                                offset: const Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.arrow_back_ios,
+                                  color: Color(0xFFFFE4B5),
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Design a System',
+                            style: GoogleFonts.saira(
+                              textStyle: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFFFE4B5),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Subtitle
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      'Choose a System to Design',
+                      style: GoogleFonts.saira(
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.white70,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Design a System',
-                        style: GoogleFonts.saira(
-                          textStyle: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Tiers List
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      itemCount: tiers.length,
+                      itemBuilder: (context, index) {
+                        final tier = tiers[index];
+                        return _buildTierCard(tier, context);
+                      },
+                    ),
+                  ),
+
+                  // View Demos Button (at the bottom, after all tiers)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 32.0, top: 8.0),
+                    child: Container(
+                      width: MediaQuery.of(context).size.width * 0.7,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3D2817),
+                        borderRadius: BorderRadius.circular(0),
+                        border: Border.all(
+                          color: const Color(0xFFFFE4B5),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 0,
+                            offset: const Offset(3, 3),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => const ViewDemosScreen(
+                                      folderPath:
+                                          '/home/shaken/quiz_game/lib/Flowchart, Diagrams',
+                                    ),
+                              ),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 16,
+                              horizontal: 20,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.folder_open,
+                                  color: Color(0xFFFFE4B5),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'View Demos',
+                                  style: GoogleFonts.saira(
+                                    textStyle: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFFFE4B5),
+                                      fontFamily: 'monospace',
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    Icon(Icons.engineering, color: Colors.white, size: 28),
-                  ],
-                ),
-              ),
-
-              // Subtitle
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Text(
-                  'Choose a System to Design',
-                  style: GoogleFonts.saira(
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
                   ),
-                ),
+                ],
               ),
-
-              const SizedBox(height: 20),
-
-              // Tiers List
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  itemCount: tiers.length,
-                  itemBuilder: (context, index) {
-                    final tier = tiers[index];
-                    return _buildTierCard(tier, context);
-                  },
-                ),
-              ),
-
-              // View Demos Button (at the bottom, after all tiers)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 32.0, top: 8.0),
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.7,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3D2817),
-                      foregroundColor: const Color(0xFFFFE4B5),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(
-                          color: Color(0xFFFFE4B5),
-                          width: 2,
-                        ),
-                      ),
-                      elevation: 4,
-                    ),
-                    icon: const Icon(
-                      Icons.folder_open,
-                      color: Color(0xFFFFE4B5),
-                    ),
-                    label: Text(
-                      'View Demos',
-                      style: GoogleFonts.saira(
-                        textStyle: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFFFE4B5),
-                          fontFamily: 'monospace',
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder:
-                              (context) => const ViewDemosScreen(
-                                folderPath:
-                                    '/home/shaken/quiz_game/lib/Flowchart, Diagrams',
-                              ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -267,24 +335,24 @@ class DesignSystemScreen extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        color: const Color(0xFF4A3420),
+        borderRadius: BorderRadius.circular(0),
+        border: Border.all(color: const Color(0xFFFFE4B5), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 0,
+            offset: const Offset(3, 3),
+          ),
+        ],
       ),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         backgroundColor: Colors.transparent,
         collapsedBackgroundColor: Colors.transparent,
-        iconColor: tier['color'],
-        collapsedIconColor: tier['color'],
+        iconColor: const Color(0xFFFFE4B5),
+        collapsedIconColor: const Color(0xFFFFE4B5),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -295,7 +363,7 @@ class DesignSystemScreen extends StatelessWidget {
                   height: 30,
                   decoration: BoxDecoration(
                     color: tier['color'],
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(0),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -306,7 +374,7 @@ class DesignSystemScreen extends StatelessWidget {
                       textStyle: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: Color(0xFFFFE4B5),
                       ),
                     ),
                   ),
@@ -347,14 +415,21 @@ class DesignSystemScreen extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: tierColor.withOpacity(0.3), width: 1),
+        color: const Color(0xFF3D2817),
+        borderRadius: BorderRadius.circular(0),
+        border: Border.all(color: tierColor.withOpacity(0.7), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 0,
+            offset: const Offset(2, 2),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(0),
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
@@ -375,8 +450,8 @@ class DesignSystemScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: tierColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    color: tierColor.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(0),
                   ),
                   child: Icon(
                     Icons.settings_suggest,
@@ -395,7 +470,7 @@ class DesignSystemScreen extends StatelessWidget {
                           textStyle: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Color(0xFFFFE4B5),
                           ),
                         ),
                       ),
@@ -405,14 +480,18 @@ class DesignSystemScreen extends StatelessWidget {
                         style: GoogleFonts.saira(
                           textStyle: TextStyle(
                             fontSize: 12,
-                            color: tierColor.withOpacity(0.8),
+                            color: tierColor.withOpacity(0.9),
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Color(0xFFFFE4B5),
+                  size: 16,
+                ),
               ],
             ),
           ),

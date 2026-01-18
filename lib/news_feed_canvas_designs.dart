@@ -49,91 +49,44 @@ class NewsFeedCanvasDesigns {
 ## Basic News Feed Architecture
 
 ### What This System Does
-A news feed shows posts from people you follow, like Facebook, Twitter, or Instagram. This basic version shows posts in chronological order (newest first).
+Shows posts from people you follow in chronological order (newest first).
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: User Opens App**
-User opens the app and requests their feed.
+**Mobile Client** - User's phone app showing the feed
 
-**Step 2: Get Following List**
-System fetches who this user follows:
-```json
-{
-  "user_id": "alice",
-  "following": ["bob", "carol", "dave", "eve"]
-}
-```
+**API Gateway** - Entry point that receives feed requests
 
-**Step 3: Fetch Posts from Each**
-For each followed user, get recent posts:
-```sql
-SELECT * FROM posts 
-WHERE author_id IN ('bob', 'carol', 'dave', 'eve')
-ORDER BY created_at DESC
-LIMIT 100
-```
+**Feed Generation** - Fetches and merges posts from followed users
 
-**Step 4: Merge and Sort**
-All posts combined and sorted by time:
-```
-1. Eve's post (2 min ago)
-2. Bob's post (5 min ago)
-3. Carol's post (12 min ago)
-4. Dave's post (1 hour ago)
-...
-```
+**Social Graph Service** - Stores who follows whom (Alice follows Bob, Carol...)
 
-**Step 5: Return to Client**
-Feed sent to app, rendered as scrollable list.
+**Content Storage** - Stores all posts with content, timestamps, media
 
-**Step 6: Pagination**
-When user scrolls, fetch more:
-- Cursor-based: "Get posts before this timestamp"
-- Offset-based: "Get posts 100-200"
+**Redis Cache** - Caches user profiles for fast display (names, avatars)
 
-### Component Breakdown
+### How They Work Together
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Mobile App | User interface | Display feed |
-| Feed Service | Fetches and merges posts | Core logic |
-| Follow Graph | Stores who follows whom | Relationships |
-| Post Store | Stores all posts | Content storage |
-| User Cache | Caches user profiles | Performance |
+1. User opens app on **Mobile Client**
+2. Request goes to **API Gateway** → **Feed Generation**
+3. **Feed Generation** asks **Social Graph Service**: "Who does this user follow?"
+4. Gets list: [Bob, Carol, Dave...]
+5. **Feed Generation** fetches posts from **Content Storage** for each followed user
+6. User profiles loaded from **Redis Cache** (fast)
+7. Posts merged, sorted by time, returned to **Mobile Client**
 
-### The Problem with This Approach
-```
-User follows 500 people
-Need posts from 500 users
-500 database queries!
-Very slow for popular users
-
-Solution: Pre-compute feeds (fan-out)
-```
-
-### Feed Query Pattern
-```sql
--- Simple but slow for large follows
-SELECT posts.*, users.name, users.avatar
-FROM posts
-JOIN users ON posts.author_id = users.id
-WHERE posts.author_id IN (
-  SELECT following_id 
-  FROM follows 
-  WHERE follower_id = 'current_user'
-)
-ORDER BY posts.created_at DESC
-LIMIT 20
-```
+### Why This Design Works
+- Simple to understand and implement
+- Works well for small follow counts
+- Limitation: Slow when following many users (1000+ queries)
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Feed Service', 'Application Services', 400, 350),
-      _createIcon('Follow Graph', 'Database & Storage', 600, 200),
-      _createIcon('Post Store', 'Database & Storage', 600, 350),
-      _createIcon('User Cache', 'Caching,Performance', 600, 500),
+      _createIcon('Feed Generation', 'Application Services', 400, 350),
+      _createIcon('Social Graph Service', 'Database & Storage', 600, 200),
+      _createIcon('Content Storage', 'Database & Storage', 600, 350),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 500),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Request Feed'),
@@ -199,40 +152,22 @@ Great for apps with more reads than writes.
 | Component | What It Does | Why It's Needed |
 |-----------|--------------|-----------------|
 | Post Service | Handles new posts | Create posts |
-| Fan-out Service | Distributes to feeds | Pre-computation |
-| Follower Index | Quick follower lookup | Fast fan-out |
-| Feed Cache | Stores user feeds | Fast reads |
-| Post Store | Stores post content | Content storage |
+| Message Queue | Distributes to feeds | Pre-computation |
+| Social Graph Service | Quick follower lookup | Fast fan-out |
+| Redis Cache | Stores user feeds | Fast reads |
+| Content Storage | Stores post content | Content storage |
 
 ### The Celebrity Problem
-```
-Elon Musk posts something
-He has 180 million followers
-Fan-out to 180M feeds = VERY SLOW!
-
-Solution: Hybrid approach for celebrities
-(See Design 4)
-```
-
-### Fan-out Time Analysis
-```
-Followers    Fan-out Time
-─────────────────────────────
-100          ~10ms
-1,000        ~100ms
-10,000       ~1 second
-1,000,000    ~100 seconds ❌
-
-Celebrities break fan-out-on-write!
-```
+Elon Musk has 180M followers - can't fan-out to all!
+Solution: Hybrid approach for celebrities (see Design 4)
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
-      _createIcon('Post Service', 'Application Services', 200, 250),
-      _createIcon('Fan-out Service', 'Application Services', 400, 250),
-      _createIcon('Follower Index', 'Database & Storage', 400, 450),
-      _createIcon('Feed Cache', 'Caching,Performance', 600, 250),
-      _createIcon('Post Store', 'Database & Storage', 600, 450),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
+      _createIcon('Content Publishing', 'Application Services', 200, 250),
+      _createIcon('Message Queue', 'Application Services', 400, 250),
+      _createIcon('Social Graph Service', 'Database & Storage', 400, 450),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 250),
+      _createIcon('Content Storage', 'Database & Storage', 600, 450),
     ],
     'connections': [
       _createConnection(0, 1, label: 'New Post'),
@@ -244,6 +179,13 @@ Celebrities break fan-out-on-write!
     ],
   };
 
+  // DESIGN 2 EXPLANATION UPDATE
+  // Fan-out on Write Architecture
+  // Icons: Mobile Client, Content Publishing, Message Queue, Social Graph Service, Redis Cache, Content Storage
+  // Flow: User posts → Content Publishing stores post → Message Queue fans out to all followers
+  //       → Social Graph Service provides follower list → Redis Cache stores each follower's feed
+  //       → When reading, just fetch from Redis Cache (instant!)
+
   // DESIGN 3: Fan-out on Read
   static Map<String, dynamic> get fanoutReadArchitecture => {
     'name': 'Fan-out on Read',
@@ -252,78 +194,44 @@ Celebrities break fan-out-on-write!
 ## Fan-out on Read Architecture
 
 ### What This System Does
-Instead of pre-computing feeds (expensive for celebrities), we compute the feed when the user requests it. Good for users who follow celebrities.
+Computes the feed when user requests it, instead of pre-computing. Great for celebrity accounts.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: Post Created Simply**
-Bob posts → Just store in Posts table.
-No fan-out, no extra work.
-Post creation is instant.
+**Mobile Client** - User's phone requesting their feed
 
-**Step 2: User Requests Feed**
-Alice opens app, requests her feed.
+**Feed Generation** - Fetches and assembles the feed on-demand
 
-**Step 3: Get Following List**
-Fetch who Alice follows:
-```json
-["bob", "carol", "celebrity_with_10M_followers"]
-```
+**Social Graph Service** - Provides list of who user follows
 
-**Step 4: Fetch Recent Posts**
-For each followed user, get their recent posts:
-- Parallel requests to each user's posts
-- Or single query with IN clause
+**Redis Cache** - Caches recent posts from each user
 
-**Step 5: Merge and Rank**
-Combine all posts, sort by relevance:
-- Time-based sorting
-- Or ML-based ranking
+**Stream Processor** - Merges and sorts posts from multiple sources
 
-**Step 6: Return Feed**
-Send merged feed to client.
+**Content Storage** - Database storing all posts
 
-### Component Breakdown
+### How They Work Together
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Feed Service | Computes feed on request | Core logic |
-| Post Cache | Caches recent posts | Speed up reads |
-| Follow Service | Gets following list | Relationships |
-| Merge Engine | Combines and sorts | Final feed |
-| Ranking Service | Scores posts | Relevance |
+1. User opens app on **Mobile Client**, requests feed
+2. **Feed Generation** asks **Social Graph Service**: "Who do I follow?"
+3. Gets back: [Bob, Carol, Celebrity...]
+4. Fetches recent posts from **Redis Cache** for each followed user
+5. Cache misses go to **Content Storage**
+6. **Stream Processor** merges all posts, sorts by time
+7. Returns assembled feed to **Mobile Client**
 
-### Read Time Analysis
-```
-Following    Read Time
-─────────────────────────────
-10           ~50ms ✓
-100          ~200ms ✓
-500          ~1 second ❌
-1000         ~2 seconds ❌
-
-Too slow for users following many people!
-```
-
-### When to Use
-```
-Good for:
-- Users following few accounts
-- Celebrity accounts (no fan-out needed)
-- Apps with more writes than reads
-
-Bad for:
-- Users following hundreds of accounts
-- Apps where users refresh constantly
-```
+### Why This Design Works
+- Celebrity posts don't need fan-out (saves massive writes)
+- Trade-off: Read is slower (must compute each time)
+- Good when: More writes than reads, or following celebrities
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
-      _createIcon('Feed Service', 'Application Services', 250, 350),
-      _createIcon('Follow Service', 'Application Services', 450, 200),
-      _createIcon('Post Cache', 'Caching,Performance', 450, 350),
-      _createIcon('Merge Engine', 'Data Processing', 450, 500),
-      _createIcon('Post Store', 'Database & Storage', 650, 350),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
+      _createIcon('Feed Generation', 'Application Services', 250, 350),
+      _createIcon('Social Graph Service', 'Application Services', 450, 200),
+      _createIcon('Redis Cache', 'Caching,Performance', 450, 350),
+      _createIcon('Stream Processor', 'Data Processing', 450, 500),
+      _createIcon('Content Storage', 'Database & Storage', 650, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Get Feed'),
@@ -419,15 +327,41 @@ When you open Twitter:
 - Inject latest celebrity tweets
 - Merge in real-time
 ```
+
+### Icons Explained
+
+**Mobile Client** - The phone or tablet app where users view their feeds and create posts.
+
+**Analytics Engine** - Classifies users as regular (fan-out on write) or celebrity (fan-out on read) based on follower count.
+
+**Message Queue** - Handles fan-out jobs for regular users, distributing posts to all their followers' feeds.
+
+**Redis Cache (top)** - Stores pre-computed feeds for regular users so they load instantly.
+
+**Redis Cache (bottom)** - Caches celebrity posts separately since they're fetched on-demand at read time.
+
+**Stream Processor** - Merges the pre-computed regular feed with live celebrity posts when user requests their feed.
+
+**Content Storage** - The main database storing all posts, user data, and the social graph of who follows whom.
+
+### How They Work Together
+
+1. User posts → Analytics Engine checks follower count to classify them
+2. Regular user posts → Message Queue fans out to all followers' Redis Caches
+3. Celebrity posts → Stored only in Content Storage (no fan-out)
+4. User opens app → Mobile Client requests feed
+5. Stream Processor reads from both Redis Caches (regular + celebrity)
+6. Stream Processor merges and ranks posts
+7. Combined feed returned to Mobile Client
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
-      _createIcon('User Classifier', 'Data Processing', 200, 200),
-      _createIcon('Fan-out Service', 'Application Services', 400, 200),
-      _createIcon('Feed Cache', 'Caching,Performance', 600, 200),
-      _createIcon('Celebrity Cache', 'Caching,Performance', 400, 500),
-      _createIcon('Merge Service', 'Data Processing', 600, 350),
-      _createIcon('Post Store', 'Database & Storage', 800, 350),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
+      _createIcon('Analytics Engine', 'Data Processing', 200, 200),
+      _createIcon('Message Queue', 'Application Services', 400, 200),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 200),
+      _createIcon('Redis Cache', 'Caching,Performance', 400, 500),
+      _createIcon('Stream Processor', 'Data Processing', 600, 350),
+      _createIcon('Content Storage', 'Database & Storage', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Post'),
@@ -545,15 +479,42 @@ score = (
     0.05 * diversity_bonus
 )
 ```
+
+### Icons Explained
+
+**Mobile Client** - The user's phone app requesting a personalized, ranked feed.
+
+**Recommendation Engine** - Gathers all potential posts (candidates) from followed accounts and suggestions.
+
+**Analytics Engine (top)** - Extracts features from each post: age, engagement rate, content type, author popularity.
+
+**Analytics Engine (bottom)** - Extracts user features: preferences, past interactions, active times, close friends.
+
+**Recommendation Engine (middle)** - The ML model that scores each post based on predicted engagement probability.
+
+**Recommendation Engine (right)** - Adds diversity filtering so users don't see 10 posts from the same author.
+
+**Analytics Service** - Runs A/B experiments to test different ranking formulas and improve the model.
+
+### How They Work Together
+
+1. Mobile Client requests feed
+2. Recommendation Engine gathers 500-1000 candidate posts
+3. Analytics Engine (top) extracts post features
+4. Analytics Engine (bottom) extracts user preferences
+5. Both feature sets feed into ML Recommendation Engine for scoring
+6. Diversity Recommendation Engine ensures variety in final feed
+7. Analytics Service runs experiments to continuously improve rankings
+8. Ranked, diverse feed returned to Mobile Client
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
-      _createIcon('Candidate Generator', 'Application Services', 200, 350),
-      _createIcon('Feature Extractor', 'Data Processing', 400, 200),
-      _createIcon('User Features', 'Database & Storage', 400, 350),
-      _createIcon('ML Ranker', 'Data Processing', 600, 350),
-      _createIcon('Diversity Filter', 'Data Processing', 800, 350),
-      _createIcon('A/B Service', 'Application Services', 600, 550),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
+      _createIcon('Recommendation Engine', 'Application Services', 200, 350),
+      _createIcon('Analytics Engine', 'Data Processing', 400, 200),
+      _createIcon('Analytics Engine', 'Database & Storage', 400, 350),
+      _createIcon('Recommendation Engine', 'Data Processing', 600, 350),
+      _createIcon('Recommendation Engine', 'Data Processing', 800, 350),
+      _createIcon('Analytics Service', 'Application Services', 600, 550),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Request'),
@@ -662,15 +623,41 @@ With Pub/Sub (Redis):
 Bob posts → Publish to "bob_posts" channel
 All servers subscribe → Each notifies local users
 ```
+
+### Icons Explained
+
+**Mobile Client** - The user's phone app that maintains a persistent WebSocket connection for real-time updates.
+
+**WebSocket Server** - Keeps long-lived connections open with all connected users for instant push delivery.
+
+**User Presence** - Tracks which users are currently online and which server they're connected to.
+
+**Content Publishing** - Handles new posts being created and publishes events about them.
+
+**Event Stream** - Routes new post events to the right users by checking who follows the author and is online.
+
+**Message Queue** - Broadcasts messages across all servers so every online follower gets notified regardless of which server they're on.
+
+**Configuration Service** - Maps user IDs to their WebSocket connections so updates reach the correct client.
+
+### How They Work Together
+
+1. User opens app → Mobile Client connects to WebSocket Server
+2. WebSocket Server registers connection with User Presence
+3. When someone posts → Content Publishing creates event
+4. Event sent to Message Queue for broadcast
+5. Event Stream checks User Presence: who follows author and is online?
+6. Event Stream looks up Configuration Service to find connection IDs
+7. WebSocket Server pushes "1 new post" notification to Mobile Client
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
       _createIcon('WebSocket Server', 'Networking', 200, 350),
-      _createIcon('Presence Service', 'Application Services', 400, 200),
-      _createIcon('Post Service', 'Application Services', 400, 350),
-      _createIcon('Stream Service', 'Application Services', 400, 500),
-      _createIcon('Pub/Sub', 'Message Systems', 600, 350),
-      _createIcon('Connection Registry', 'Caching,Performance', 600, 500),
+      _createIcon('User Presence', 'Application Services', 400, 200),
+      _createIcon('Content Publishing', 'Application Services', 400, 350),
+      _createIcon('Event Stream', 'Application Services', 400, 500),
+      _createIcon('Message Queue', 'Message Systems', 600, 350),
+      _createIcon('Configuration Service', 'Caching,Performance', 600, 500),
     ],
     'connections': [
       _createConnection(0, 1, label: 'WebSocket'),
@@ -785,16 +772,43 @@ Different rules per type:
 - Likes: Aggregate after 2
 - Follows: Aggregate after 5
 ```
+
+### Icons Explained
+
+**Metrics Collector** - Captures all user actions (likes, comments, mentions, follows) as notification-triggering events.
+
+**Notification Service** - Core service that creates notification records and decides what message to show.
+
+**Stream Processor** - Aggregates similar notifications (e.g., "Bob and 5 others liked your photo" instead of 6 separate notifications).
+
+**Load Balancer** - Routes notifications to the right delivery channel based on user preferences and notification type.
+
+**Push Notification** - Sends mobile push notifications via APNS (iOS) or FCM (Android) for urgent alerts.
+
+**Email Service** - Handles email notifications for digests and alerts when users prefer email.
+
+**SMS Service** - Sends text messages for critical notifications only (security alerts, account issues).
+
+**NoSQL Database** - Stores all notification records with read/unread status for in-app notification history.
+
+### How They Work Together
+
+1. User action (like, comment, mention) → Metrics Collector captures event
+2. Notification Service creates notification record
+3. Stream Processor aggregates if multiple similar notifications exist
+4. Notification stored in NoSQL Database for in-app viewing
+5. Load Balancer checks user preferences and routes to appropriate channel
+6. Depending on settings: Push Notification, Email Service, or SMS Service delivers
 ''',
     'icons': [
-      _createIcon('Event Collector', 'Data Processing', 50, 350),
+      _createIcon('Metrics Collector', 'Data Processing', 50, 350),
       _createIcon('Notification Service', 'Application Services', 200, 350),
-      _createIcon('Aggregator', 'Data Processing', 400, 350),
-      _createIcon('Router', 'Networking', 600, 350),
-      _createIcon('Push Service', 'Application Services', 800, 200),
+      _createIcon('Stream Processor', 'Data Processing', 400, 350),
+      _createIcon('Load Balancer', 'Networking', 600, 350),
+      _createIcon('Push Notification', 'Application Services', 800, 200),
       _createIcon('Email Service', 'Application Services', 800, 350),
       _createIcon('SMS Service', 'Application Services', 800, 500),
-      _createIcon('Notification Store', 'Database & Storage', 400, 550),
+      _createIcon('NoSQL Database', 'Database & Storage', 400, 550),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Event'),
@@ -899,15 +913,41 @@ user:{user_id} → {name, avatar, followers...}
    - New post → Prepend to cached feed
    - Never invalidate, just update
 ```
+
+### Icons Explained
+
+**Mobile Client** - The user's phone app requesting their feed as fast as possible.
+
+**CDN** - Edge cache close to users, great for static content but not personalized feeds.
+
+**Redis Cache (L1)** - Local in-memory cache on the app server (microsecond access, limited size).
+
+**Redis Cache (L2)** - Distributed Redis cache shared across all servers (millisecond access, large capacity).
+
+**Feed Generation** - Service that computes the feed when there's a cache miss (fan-out on read).
+
+**Scheduler** - Cache warmer that pre-populates caches for active users before they request feeds.
+
+**SQL Database** - The source of truth storing all posts, follows, and user data.
+
+### How They Work Together
+
+1. Mobile Client requests feed → hits CDN first
+2. CDN miss → Check Redis Cache L1 (local, ultra-fast)
+3. L1 miss → Check Redis Cache L2 (distributed, still fast)
+4. L2 miss → Feed Generation computes feed from SQL Database
+5. Generated feed stored back in Redis Cache L2 for next time
+6. Scheduler proactively warms caches for active users
+7. Result: 95%+ cache hit rate, <200ms feed delivery
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
       _createIcon('CDN', 'Networking', 200, 350),
-      _createIcon('App Cache', 'Caching,Performance', 400, 200),
-      _createIcon('Redis Cluster', 'Caching,Performance', 400, 350),
-      _createIcon('Feed Service', 'Application Services', 400, 500),
-      _createIcon('Cache Warmer', 'System Utilities', 600, 200),
-      _createIcon('Database', 'Database & Storage', 600, 450),
+      _createIcon('Redis Cache', 'Caching,Performance', 400, 200),
+      _createIcon('Redis Cache', 'Caching,Performance', 400, 350),
+      _createIcon('Feed Generation', 'Application Services', 400, 500),
+      _createIcon('Scheduler', 'System Utilities', 600, 200),
+      _createIcon('SQL Database', 'Database & Storage', 600, 450),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Request'),
@@ -1020,15 +1060,41 @@ Average 50 impressions per session
 
 Need serious scale!
 ```
+
+### Icons Explained
+
+**Mobile Client** - The user's phone app that tracks every impression, tap, scroll, and engagement action.
+
+**Metrics Collector** - Gathers all events from clients and tags them with metadata (user, timestamp, position).
+
+**Message Queue** - High-throughput event streaming (like Kafka) that handles millions of events per second durably.
+
+**Stream Processor** - Processes events in real-time to compute live metrics: active users, trending posts, engagement rates.
+
+**Batch Processor** - Runs daily/weekly jobs for deep analytics: daily active users, session lengths, A/B test results.
+
+**Data Warehouse** - Stores all historical data for querying, reporting, and training ML models.
+
+**Analytics Service** - Dashboards and alerting that visualize metrics and notify teams of anomalies.
+
+### How They Work Together
+
+1. Every action on Mobile Client generates events (impressions, likes, scrolls)
+2. Metrics Collector captures and enriches events with context
+3. All events stream through Message Queue for durability and scale
+4. Stream Processor provides real-time dashboards (who's online right now?)
+5. Batch Processor runs overnight for comprehensive reports
+6. Both write results to Data Warehouse for historical analysis
+7. Analytics Service displays dashboards and sends alerts to product teams
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 350),
-      _createIcon('Event Collector', 'Data Processing', 200, 350),
-      _createIcon('Kafka', 'Message Systems', 400, 350),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 350),
+      _createIcon('Metrics Collector', 'Data Processing', 200, 350),
+      _createIcon('Message Queue', 'Message Systems', 400, 350),
       _createIcon('Stream Processor', 'Data Processing', 600, 200),
       _createIcon('Batch Processor', 'Data Processing', 600, 500),
       _createIcon('Data Warehouse', 'Database & Storage', 800, 350),
-      _createIcon('Dashboard', 'Client & Interface', 950, 350),
+      _createIcon('Analytics Service', 'Client & Interface', 950, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Events'),
@@ -1098,18 +1164,53 @@ Feed latency: <200ms (p99)
 3. **Rank Smart**: ML-powered relevance
 4. **Push Updates**: Real-time experience
 5. **Measure All**: Data-driven decisions
+
+### Icons Explained
+
+**Mobile Client** - Phone app users access the feed through.
+
+**Web Browser** - Desktop/laptop users access the feed through.
+
+**API Gateway** - Single entry point that routes all requests to the right internal services.
+
+**Content Publishing** - Handles creating and storing new posts with media.
+
+**Feed Generation** - Builds personalized feeds using hybrid fan-out (write for regular users, read for celebrities).
+
+**Notification Service** - Sends push notifications for likes, comments, and new posts from followed accounts.
+
+**Redis Cache** - Stores pre-computed feeds and hot data for fast access.
+
+**Recommendation Engine** - ML model that ranks posts by predicted engagement and relevance.
+
+**Content Storage** - Main database for all posts, media references, and content metadata.
+
+**Social Graph Service** - Stores who follows whom, friend relationships, and social connections.
+
+**Analytics Engine** - Tracks all user activity for improving rankings and making product decisions.
+
+### How They Work Together
+
+1. Mobile Client or Web Browser sends request to API Gateway
+2. For posting: API Gateway → Content Publishing → Content Storage
+3. For reading: API Gateway → Feed Generation
+4. Feed Generation checks Redis Cache, uses Social Graph Service for follows
+5. Recommendation Engine ranks the posts by relevance
+6. Notification Service pushes real-time updates to Mobile Client
+7. Analytics Engine tracks everything to improve the ML model
+8. Result: Fast, personalized, real-time feed at Facebook/Twitter scale
 ''',
     'icons': [
-      _createIcon('Mobile App', 'Client & Interface', 50, 200),
-      _createIcon('Web App', 'Client & Interface', 50, 400),
+      _createIcon('Mobile Client', 'Client & Interface', 50, 200),
+      _createIcon('Web Browser', 'Client & Interface', 50, 400),
       _createIcon('API Gateway', 'Networking', 200, 300),
-      _createIcon('Post Service', 'Application Services', 400, 150),
-      _createIcon('Feed Service', 'Application Services', 400, 300),
+      _createIcon('Content Publishing', 'Application Services', 400, 150),
+      _createIcon('Feed Generation', 'Application Services', 400, 300),
       _createIcon('Notification Service', 'Application Services', 400, 450),
       _createIcon('Redis Cache', 'Caching,Performance', 600, 200),
-      _createIcon('ML Ranker', 'Data Processing', 600, 350),
-      _createIcon('Post Store', 'Database & Storage', 800, 200),
-      _createIcon('Social Graph', 'Database & Storage', 800, 350),
+      _createIcon('Recommendation Engine', 'Data Processing', 600, 350),
+      _createIcon('Content Storage', 'Database & Storage', 800, 200),
+      _createIcon('Social Graph Service', 'Database & Storage', 800, 350),
       _createIcon('Analytics Engine', 'Data Processing', 800, 500),
     ],
     'connections': [

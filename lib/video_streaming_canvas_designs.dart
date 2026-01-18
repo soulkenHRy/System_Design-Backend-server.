@@ -98,13 +98,37 @@ video_4k.m3u8
 ```
 
 The player picks the appropriate quality based on bandwidth.
+
+### Icons Explained
+**Web Browser** - Users watching videos through their web browser on desktop or laptop.
+
+**Mobile Client** - Users watching on mobile apps (iOS/Android phones and tablets).
+
+**API Gateway** - The entry point that routes all API requests to appropriate services.
+
+**Video Streaming** - Core service handling playback logic, manifest generation, and streaming URLs.
+
+**Data Warehouse** - Database storing all movie/show metadata: titles, descriptions, ratings, genres.
+
+**CDN** - Content Delivery Network caching video files at edge locations worldwide for fast delivery.
+
+**Object Storage** - Permanent storage for all video files and transcoded versions.
+
+### How They Work Together
+1. User opens app on **Web Browser** or **Mobile Client**
+2. Request goes through **API Gateway** to **Video Streaming**
+3. **Video Streaming** fetches movie details from **Data Warehouse**
+4. When user clicks play, **Video Streaming** returns a manifest URL pointing to **CDN**
+5. **CDN** fetches video from **Object Storage** if not cached
+6. **CDN** streams video directly to user's device
+7. Player adapts quality based on bandwidth using the manifest
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 300),
+      _createIcon('Web Browser', 'Client & Interface', 50, 300),
       _createIcon('Mobile Client', 'Client & Interface', 50, 450),
       _createIcon('API Gateway', 'Networking', 250, 375),
-      _createIcon('Video Service', 'Application Services', 450, 375),
-      _createIcon('Content Catalog', 'Database & Storage', 450, 550),
+      _createIcon('Video Streaming', 'Application Services', 450, 375),
+      _createIcon('Data Warehouse', 'Database & Storage', 450, 550),
       _createIcon('CDN', 'Networking', 650, 300),
       _createIcon('Object Storage', 'Database & Storage', 650, 450),
     ],
@@ -200,10 +224,39 @@ HDR content       1.5x longer
 - Phone on LTE: 480p
 - Old device: 480p H.264
 - New device: 4K HEVC/AV1
+
+### Icons Explained
+**Admin User** - Interface for content managers to upload and manage videos.
+
+**File Upload Service** - Handles large file uploads using chunked transfer for reliability.
+
+**Object Storage** (Raw Storage) - Stores original master files in highest quality for archival.
+
+**Content Moderation** - Checks uploaded files for corruption, audio sync, and quality issues.
+
+**Message Queue** - Queues transcoding jobs for reliable asynchronous processing.
+
+**Video Transcoding** - Hundreds of machines that convert videos to multiple formats and qualities.
+
+**Monitoring System** - Automated and manual quality assurance checking encoded outputs.
+
+**CDN** - Pushes approved content to CDN edge locations worldwide.
+
+**CDN** - Content Delivery Network that caches transcoded videos for fast global delivery.
+
+### How They Work Together
+1. Content manager uploads via **Admin User** to **File Upload Service**
+2. **File Upload Service** stores original in **Object Storage** (Raw Storage)
+3. **Content Moderation** checks the upload for issues
+4. Valid files get queued in **Message Queue** for processing
+5. **Video Transcoding** creates all quality versions (4K, 1080p, 720p, etc.)
+6. **Monitoring System** verifies output quality
+7. Approved content goes to **CDN**
+8. **CDN** pushes to **CDN** for user access
 ''',
     'icons': [
-      _createIcon('Admin Dashboard', 'Client & Interface', 50, 350),
-      _createIcon('Upload Service', 'Application Services', 250, 350),
+      _createIcon('Admin User', 'Client & Interface', 50, 350),
+      _createIcon('File Upload Service', 'Application Services', 250, 350),
       _createIcon(
         'Object Storage',
         'Database & Storage',
@@ -211,11 +264,11 @@ HDR content       1.5x longer
         550,
         id: 'Raw Storage',
       ),
-      _createIcon('Validation Service', 'Application Services', 450, 350),
+      _createIcon('Content Moderation', 'Application Services', 450, 350),
       _createIcon('Message Queue', 'Message Systems', 450, 550),
-      _createIcon('Transcoding Cluster', 'Application Services', 650, 350),
-      _createIcon('QA Service', 'Application Services', 850, 350),
-      _createIcon('Distribution Service', 'Application Services', 1050, 350),
+      _createIcon('Video Transcoding', 'Application Services', 650, 350),
+      _createIcon('Monitoring System', 'Application Services', 850, 350),
+      _createIcon('CDN', 'Application Services', 1050, 350),
       _createIcon('CDN', 'Networking', 1050, 550),
     ],
     'connections': [
@@ -300,17 +353,46 @@ Time of day       Low       Late night viewing
 
 ### Netflix's Famous Algorithm
 Netflix estimates that 80% of content watched comes from recommendations, not search. The algorithm saves billions in content costs by surfacing the right content to the right users.
+
+### Icons Explained
+**Web Browser** - User watching content and generating behavioral signals.
+
+**API Gateway** - Routes user requests and events to backend services.
+
+**Metrics Collector** - Captures every user action: plays, pauses, skips, searches, etc.
+
+**Analytics Service** - Aggregates events into user profiles with preferences and taste clusters.
+
+**Recommendation Engine** - ML-powered system that generates personalized suggestions.
+
+**ML Model** - Training pipeline that continuously improves recommendation models.
+
+**A/B Testing Service** - Tests different thumbnails, descriptions, and algorithms per user.
+
+**Data Warehouse** - Database of all available content to recommend from.
+
+**API Server** - Real-time API that serves personalized homepages in <100ms.
+
+### How They Work Together
+1. User browses on **Web Browser**, actions captured by **API Gateway**
+2. **Metrics Collector** receives all events (watched, paused, searched)
+3. Events update **Analytics Service** with preferences
+4. **Recommendation Engine** uses profile to generate suggestions
+5. **ML Model** trains models from aggregated user data
+6. **A/B Testing Service** determines which variant to show
+7. **Data Warehouse** provides the actual titles
+8. **API Server** returns fully personalized homepage
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Event Collector', 'Data Processing', 400, 200),
-      _createIcon('User Profile Service', 'Application Services', 400, 350),
+      _createIcon('Metrics Collector', 'Data Processing', 400, 200),
+      _createIcon('Analytics Service', 'Application Services', 400, 350),
       _createIcon('Recommendation Engine', 'Data Processing', 400, 500),
-      _createIcon('ML Pipeline', 'Data Processing', 600, 500),
-      _createIcon('A/B Testing Service', 'Application Services', 600, 200),
-      _createIcon('Content Catalog', 'Database & Storage', 600, 350),
-      _createIcon('Personalization API', 'Application Services', 800, 350),
+      _createIcon('ML Model', 'Data Processing', 600, 500),
+      _createIcon('Analytics Service', 'Application Services', 600, 200),
+      _createIcon('Data Warehouse', 'Database & Storage', 600, 350),
+      _createIcon('API Server', 'Application Services', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Request'),
@@ -401,17 +483,46 @@ System knows:
 - "inception" is a known title
 - Suggests: "Did you mean: Inception?"
 ```
+
+### Icons Explained
+**Web Browser** - User typing search queries and viewing results.
+
+**API Gateway** - Routes search requests to appropriate search services.
+
+**Search Engine** - Suggests completions as user types using prefix matching.
+
+**Search Engine** - Handles full-text search queries against the search index.
+
+**Content Moderation** - Applies filters like genre, year, and rating to results.
+
+**Data Warehouse** - Inverted index (like Elasticsearch) for fast full-text lookups.
+
+**Ranking Engine** - Personalizes result order based on user preferences.
+
+**NoSQL Database** - Stores user preferences for personalized ranking.
+
+**Data Warehouse** - Enriches results with full metadata (descriptions, images).
+
+### How They Work Together
+1. User types in search box on **Web Browser**
+2. After 2-3 characters, **API Gateway** queries **Search Engine**
+3. **Search Engine** checks **Data Warehouse** for prefix matches
+4. User submits full query to **Search Engine**
+5. **Search Engine** queries **Data Warehouse** for matching content
+6. **Content Moderation** applies any active filters
+7. **Ranking Engine** personalizes order using **NoSQL Database**
+8. Results enriched from **Data Warehouse** and returned to user
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Autocomplete Service', 'Application Services', 400, 200),
-      _createIcon('Search Service', 'Application Services', 400, 350),
-      _createIcon('Filter Service', 'Application Services', 400, 500),
-      _createIcon('Search Index', 'Database & Storage', 600, 200),
-      _createIcon('Ranking Service', 'Data Processing', 600, 350),
-      _createIcon('User Profile Store', 'Database & Storage', 600, 500),
-      _createIcon('Content Catalog', 'Database & Storage', 800, 350),
+      _createIcon('Search Engine', 'Application Services', 400, 200),
+      _createIcon('Search Engine', 'Application Services', 400, 350),
+      _createIcon('Content Moderation', 'Application Services', 400, 500),
+      _createIcon('Data Warehouse', 'Database & Storage', 600, 200),
+      _createIcon('Ranking Engine', 'Data Processing', 600, 350),
+      _createIcon('NoSQL Database', 'Database & Storage', 600, 500),
+      _createIcon('Data Warehouse', 'Database & Storage', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Search Query'),
@@ -511,15 +622,44 @@ Key Metrics:
 - LTV (Lifetime Value): \$500/subscriber
 - Trial Conversion: 70%
 ```
+
+### Icons Explained
+**Web Browser** - User signing up or managing their subscription.
+
+**API Gateway** - Routes subscription and payment requests.
+
+**Payment Gateway** - Manages plan selection, upgrades, and downgrades.
+
+**Authentication** - Creates and manages user accounts and profiles.
+
+**Payment Gateway** - Processes credit cards, tokenizes payment info, authorizes charges.
+
+**Payment Gateway** - Handles recurring monthly charges and retry logic.
+
+**Logging Service** - Generates receipts and billing history.
+
+**SQL Database** - Stores subscription data, payment tokens, and billing history.
+
+**Notification Service** - Sends emails for receipts, failed payments, and renewals.
+
+### How They Work Together
+1. User visits signup page on **Web Browser**
+2. **API Gateway** routes to **Payment Gateway** for plan selection
+3. **Payment Gateway** creates account via **Authentication**
+4. Payment sent to **Payment Gateway** for authorization
+5. On success, **Payment Gateway** schedules monthly charges
+6. **Logging Service** generates receipt
+7. **Authentication** stores data in **SQL Database**
+8. **Notification Service** sends confirmation email
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Subscription Service', 'Application Services', 400, 250),
-      _createIcon('Account Service', 'Application Services', 400, 450),
+      _createIcon('Payment Gateway', 'Application Services', 400, 250),
+      _createIcon('Authentication', 'Application Services', 400, 450),
       _createIcon('Payment Gateway', 'Networking', 600, 250),
-      _createIcon('Billing Service', 'Application Services', 600, 450),
-      _createIcon('Invoice Service', 'Application Services', 800, 350),
+      _createIcon('Payment Gateway', 'Application Services', 600, 450),
+      _createIcon('Logging Service', 'Application Services', 800, 350),
       _createIcon('SQL Database', 'Database & Storage', 800, 550),
       _createIcon('Notification Service', 'Message Systems', 1000, 350),
     ],
@@ -617,14 +757,41 @@ If pirated content appears online:
 4. Terminate their account
 5. Legal action if warranted
 ```
+
+### Icons Explained
+**Web Browser** - User requesting to play protected content.
+
+**API Gateway** - Routes playback requests through security layers.
+
+**DRM System** - Issues time-limited decryption keys after validation.
+
+**Security Gateway** - Verifies user's location matches content licensing agreements.
+
+**Authorization** - Securely stores and manages encryption keys.
+
+**Authentication** - Verifies the device is trusted and not jailbroken.
+
+**CDN** - Delivers encrypted video content from edge locations.
+
+**Object Storage** - Stores encrypted video files at rest.
+
+### How They Work Together
+1. User clicks play on **Web Browser**
+2. **API Gateway** routes to **DRM System** for decryption key
+3. **DRM System** checks **Security Gateway** for location compliance
+4. **Authentication** verifies the device is trusted
+5. **Authorization** provides the decryption key
+6. License issued to user's device (time-limited, device-bound)
+7. **CDN** serves encrypted video from **Object Storage**
+8. Device decrypts and plays in secure environment
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('License Server', 'Security,Monitoring', 400, 250),
-      _createIcon('Geo-Restriction', 'Security,Monitoring', 400, 450),
-      _createIcon('Key Management', 'Security,Monitoring', 600, 250),
-      _createIcon('Device Attestation', 'Security,Monitoring', 600, 450),
+      _createIcon('DRM System', 'Security,Monitoring', 400, 250),
+      _createIcon('Security Gateway', 'Security,Monitoring', 400, 450),
+      _createIcon('Authorization', 'Security,Monitoring', 600, 250),
+      _createIcon('Authentication', 'Security,Monitoring', 600, 450),
       _createIcon('CDN', 'Networking', 800, 350),
       _createIcon('Object Storage', 'Database & Storage', 800, 550),
     ],
@@ -722,9 +889,29 @@ Recovery: Tokyo users → AWS Tokyo
 Failover time: <30 seconds
 User impact: Brief interruption, then normal service
 ```
+
+### Icons Explained
+**Web Browser** - User accessing the streaming service from anywhere in the world.
+
+**Global Load Balancer** - Routes users to the nearest healthy region for lowest latency.
+
+**Application Server** (Region USA, EU, Asia) - Complete application stacks in each region.
+
+**SQL Database** (DB USA, EU, Asia) - Regional databases with cross-region replication.
+
+**CDN** - Open Connect network with edge servers inside ISPs worldwide.
+
+### How They Work Together
+1. User in Tokyo opens app on **Web Browser**
+2. **Global Load Balancer** routes to nearest region (Asia)
+3. **Application Server** (Region Asia) handles the request
+4. **SQL Database** (DB Asia) provides data locally
+5. Critical data replicates between **DB USA**, **DB EU**, and **DB Asia**
+6. **CDN** serves video from edge location inside user's ISP
+7. If Asia region fails, **Global Load Balancer** redirects to next nearest region
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('Global Load Balancer', 'Networking', 200, 350),
       _createIcon(
         'Application Server',
@@ -853,14 +1040,39 @@ Netflix Smart Downloads:
 3. Episode 4 auto-downloaded
 4. Always ready, never full storage
 ```
+
+### Icons Explained
+**Mobile Client** - User downloading content for offline viewing on their phone/tablet.
+
+**File Upload Service** - Coordinates downloads, manages queue, shows progress.
+
+**DRM System** - Issues extended offline licenses (30-day validity).
+
+**Video Processing** - Downloads video in chunks with resume support.
+
+**CDN** - Serves video segments for download.
+
+**Blob Storage** - Encrypted local storage on device, cannot be copied.
+
+**Sync Service** - Renews licenses when device goes online.
+
+### How They Work Together
+1. User taps download on **Mobile Client**
+2. **File Upload Service** checks storage and requests license from **DRM System**
+3. **DRM System** issues 30-day offline license
+4. **Video Processing** fetches video segments from **CDN**
+5. Segments encrypted and saved to **Blob Storage**
+6. User watches offline using local license
+7. When online, **Sync Service** renews expiring licenses
+8. After 48 hours of playback, license must be renewed via **DRM System**
 ''',
     'icons': [
       _createIcon('Mobile Client', 'Client & Interface', 50, 350),
-      _createIcon('Download Manager', 'Application Services', 250, 350),
-      _createIcon('License Service', 'Security,Monitoring', 450, 250),
-      _createIcon('Segment Downloader', 'Application Services', 450, 450),
+      _createIcon('File Upload Service', 'Application Services', 250, 350),
+      _createIcon('DRM System', 'Security,Monitoring', 450, 250),
+      _createIcon('Video Processing', 'Application Services', 450, 450),
       _createIcon('CDN', 'Networking', 650, 350),
-      _createIcon('Secure Storage', 'Database & Storage', 250, 550),
+      _createIcon('Blob Storage', 'Database & Storage', 250, 550),
       _createIcon('Sync Service', 'Application Services', 450, 600),
     ],
     'connections': [
@@ -955,17 +1167,46 @@ Each user is in many experiments.
 Data analysts measure impact on engagement.
 Winning variants become the default.
 ```
+
+### Icons Explained
+**Web Browser** - User watching content and generating events.
+
+**Mobile Client** - Mobile user generating viewing events.
+
+**Metrics Collector** - Ingests millions of events per second from all devices.
+
+**Stream Processor** - Real-time processing for live metrics (current viewers, quality issues).
+
+**Batch Processor** - Nightly deep analysis (completion rates, drop-off points).
+
+**Message Queue** - Kafka-like queue routing events to processors.
+
+**Data Warehouse** - Petabytes of historical viewing data (10+ years).
+
+**Admin User** - Business Intelligence dashboards for all teams.
+
+**A/B Platform** - Analyzes experiment results to determine winners.
+
+### How They Work Together
+1. Events flow from **Web Browser** and **Mobile Client** to **Metrics Collector**
+2. **Metrics Collector** publishes to **Message Queue**
+3. **Stream Processor** computes real-time metrics (live viewers, issues)
+4. **Batch Processor** runs nightly for deep analysis
+5. Both processors store results in **Data Warehouse**
+6. **Admin User** queries warehouse for visualizations
+7. **A/B Platform** analyzes experiment data from warehouse
+8. Insights drive content and product decisions
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 250),
+      _createIcon('Web Browser', 'Client & Interface', 50, 250),
       _createIcon('Mobile Client', 'Client & Interface', 50, 450),
-      _createIcon('Event Collector', 'Data Processing', 250, 350),
+      _createIcon('Metrics Collector', 'Data Processing', 250, 350),
       _createIcon('Stream Processor', 'Data Processing', 450, 250),
       _createIcon('Batch Processor', 'Data Processing', 450, 450),
       _createIcon('Message Queue', 'Message Systems', 450, 350),
       _createIcon('Data Warehouse', 'Database & Storage', 650, 350),
-      _createIcon('BI Dashboard', 'Client & Interface', 850, 250),
-      _createIcon('A/B Platform', 'Application Services', 850, 450),
+      _createIcon('Admin User', 'Client & Interface', 850, 250),
+      _createIcon('Analytics Service', 'Application Services', 850, 450),
     ],
     'connections': [
       _createConnection(0, 2, label: 'Events'),
@@ -1039,18 +1280,56 @@ Cloud spend: \$1.5+ billion/year
 3. **Global**: Available everywhere, low latency
 4. **Personalized**: Every user sees different content
 5. **Data-Driven**: Every decision backed by analytics
+
+### Icons Explained
+**Web Browser** - Users watching on web browsers (Chrome, Firefox, Safari).
+
+**Mobile Client** - Users on iOS/Android mobile apps.
+
+**Desktop Client** - Smart TV and streaming device users.
+
+**CDN** - Content Delivery Network caching video at edge locations globally.
+
+**Global Load Balancer** - Routes users to nearest healthy region.
+
+**API Gateway** - Central entry point routing all API requests.
+
+**Video Streaming** - Handles playback logic and manifest generation.
+
+**Search Engine** - Full-text search with autocomplete and filters.
+
+**Recommendation Engine** - ML-powered personalization for each user.
+
+**DRM System** - DRM license management for content protection.
+
+**SQL Database** - Stores metadata, user data, and billing info.
+
+**Analytics Engine** - Processes viewing data for insights.
+
+**Object Storage** - Permanent storage for all video content.
+
+### How They Work Together
+1. Users from **Web Browser**, **Mobile Client**, or **Desktop Client** connect
+2. **CDN** handles video delivery, **Global Load Balancer** routes API requests
+3. **API Gateway** directs to appropriate service
+4. **Video Streaming** handles playback with **DRM System** for DRM
+5. **Search Engine** helps users find content
+6. **Recommendation Engine** personalizes the homepage
+7. **SQL Database** stores all operational data
+8. **Object Storage** serves video files through **CDN**
+9. **Analytics Engine** processes all viewing events for insights
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 200),
+      _createIcon('Web Browser', 'Client & Interface', 50, 200),
       _createIcon('Mobile Client', 'Client & Interface', 50, 350),
-      _createIcon('TV Client', 'Client & Interface', 50, 500),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 500),
       _createIcon('CDN', 'Networking', 200, 350),
       _createIcon('Global Load Balancer', 'Networking', 350, 350),
       _createIcon('API Gateway', 'Networking', 500, 350),
-      _createIcon('Video Service', 'Application Services', 700, 200),
-      _createIcon('Search Service', 'Application Services', 700, 350),
+      _createIcon('Video Streaming', 'Application Services', 700, 200),
+      _createIcon('Search Engine', 'Application Services', 700, 350),
       _createIcon('Recommendation Engine', 'Data Processing', 700, 500),
-      _createIcon('License Server', 'Security,Monitoring', 900, 200),
+      _createIcon('DRM System', 'Security,Monitoring', 900, 200),
       _createIcon('SQL Database', 'Database & Storage', 900, 350),
       _createIcon('Analytics Engine', 'Data Processing', 900, 500),
       _createIcon('Object Storage', 'Database & Storage', 1100, 350),

@@ -49,89 +49,45 @@ class PastebinCanvasDesigns {
 ## Basic Pastebin Architecture
 
 ### What This System Does
-Pastebin lets users share text snippets via unique URLs. User pastes code, gets a link like paste.io/abc123, shares it, anyone with the link can view the content.
+Users paste text/code, get a shareable link (paste.io/abc123), and anyone with the link can view it.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: User Submits Paste**
-User types or pastes text into the web form:
-- Content: "function hello() { return 'world'; }"
-- Options: Expiration (1 hour, 1 day, never)
-- Optional: Syntax highlighting (JavaScript)
+**Web Browser** - The user's browser where they type or view pastes
 
-**Step 2: Server Generates Unique ID**
-The Paste Service generates a short, unique ID:
-- Method 1: Random string (abc123)
-- Method 2: Base62 encoded counter
-- Length: 6-8 characters = billions of combinations
+**API Gateway** - Entry point that receives all requests, validates them, and routes to the right service
 
-**Step 3: Content Stored**
-The paste is stored in the database:
-```json
-{
-  "id": "abc123",
-  "content": "function hello()...",
-  "created_at": 1642000000,
-  "expires_at": 1642086400,
-  "syntax": "javascript",
-  "views": 0
-}
-```
+**Content Storage** - Saves and retrieves paste content, handles the core create/read logic
 
-**Step 4: URL Returned**
-User receives the shareable URL:
-- https://paste.io/abc123
-- Can be copied and shared immediately
+**Configuration Service** - Generates unique short IDs (abc123) for each paste URL
 
-**Step 5: Viewer Requests Paste**
-Someone visits https://paste.io/abc123:
-- Server looks up ID in database
-- Checks if expired
-- Returns content with syntax highlighting
+**SQL Database** - Stores all paste data: content, creation time, expiration, view count
 
-**Step 6: Expiration Cleanup**
-Background job runs periodically:
-- Find all pastes where expires_at < now
-- Delete expired pastes
-- Reclaim storage space
+**Scheduler** - Runs cleanup jobs to delete expired pastes automatically
 
-### Component Breakdown
+### How They Work Together
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Web Client | User interface | Create and view pastes |
-| Paste Service | Core paste logic | Business logic |
-| ID Generator | Creates unique IDs | URL generation |
-| Database | Stores paste content | Persistence |
-| Cleanup Job | Removes expired pastes | Storage management |
-| Syntax Highlighter | Formats code | Readability |
+1. User types text in **Web Browser** → clicks "Create Paste"
+2. Request goes to **API Gateway** → validates input, checks rate limits
+3. **API Gateway** forwards to **Content Storage** service
+4. **Content Storage** asks **Configuration Service** for a unique ID
+5. **Content Storage** saves paste to **SQL Database**
+6. User gets back URL: paste.io/abc123
+7. **Scheduler** runs every hour, finds expired pastes, deletes them from **SQL Database**
 
-### ID Generation Strategies
-```
-Strategy        Example      Collisions    Predictable
-───────────────────────────────────────────────────────
-Random          "xK9mPq"     Possible      No
-Counter+Base62  "1a2B"       Never         Yes (bad)
-UUID (short)    "a1b2c3d4"   Very rare     No
-Hashids         "NkKQ9"      Never         No
-```
-
-### Storage Calculation
-```
-Average paste size: 5 KB
-Pastes per day: 100,000
-Storage per day: 500 MB
-Storage per year: 180 GB
-With compression: ~60 GB
-```
+### Why This Design Works
+- Simple and easy to understand
+- Each component has one job
+- Database handles all storage
+- Scheduler keeps storage clean
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 250, 350),
-      _createIcon('Paste Service', 'Application Services', 450, 350),
-      _createIcon('ID Generator', 'System Utilities', 450, 550),
+      _createIcon('Content Storage', 'Application Services', 450, 350),
+      _createIcon('Configuration Service', 'System Utilities', 450, 550),
       _createIcon('SQL Database', 'Database & Storage', 650, 350),
-      _createIcon('Cleanup Job', 'System Utilities', 650, 550),
+      _createIcon('Scheduler', 'System Utilities', 650, 550),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Create Paste'),
@@ -150,82 +106,44 @@ With compression: ~60 GB
 ## Scalable Pastebin Architecture
 
 ### What This System Does
-When a paste goes viral (linked on Reddit/HN), it might get millions of views. This architecture handles massive read traffic through caching and CDN.
+Handles viral pastes with millions of views using caching and global distribution.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: Paste Created Normally**
-User creates paste as before. Content stored in database.
+**Web Browser** - User accessing the paste from anywhere in the world
 
-**Step 2: First View Triggers Cache**
-When first viewer accesses the paste:
-- Check cache (miss)
-- Fetch from database
-- Store in Redis cache
-- Return to user
+**CDN** - Content Delivery Network with servers worldwide, caches popular pastes close to users
 
-**Step 3: Subsequent Views Hit Cache**
-All following requests:
-- Check cache (hit!)
-- Return immediately
-- Database not touched
-- 10x faster, less DB load
+**Global Load Balancer** - Distributes traffic across multiple servers, prevents overload
 
-**Step 4: Popular Pastes Hit CDN**
-For extremely popular pastes:
-- Content pushed to CDN edge servers
-- Viewers served from nearest CDN node
-- Origin server barely touched
+**Content Storage** - Core service that manages paste creation and retrieval
 
-**Step 5: Write-through Caching**
-When paste is created:
-- Write to database
-- Also write to cache immediately
-- Cache always has latest data
+**Redis Cache** - Super-fast in-memory storage, holds frequently accessed pastes
 
-**Step 6: Cache Invalidation on Expiry**
-When paste expires:
-- Database record deleted
-- Cache entry invalidated
-- CDN cache purged
+**SQL Database** - Permanent storage for all pastes
 
-### Component Breakdown
+### How They Work Together
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Load Balancer | Distributes traffic | Handle spikes |
-| Redis Cache | In-memory storage | Fast reads |
-| CDN | Edge caching | Global performance |
-| Database Cluster | Replicated storage | Durability |
-| Cache Warmer | Pre-populates cache | Reduce cold starts |
+1. User in Tokyo requests paste.io/abc123
+2. **CDN** checks if it has a cached copy nearby → if yes, returns instantly (5ms)
+3. If not cached, request goes to **Global Load Balancer**
+4. **Load Balancer** picks a healthy server running **Content Storage**
+5. **Content Storage** checks **Redis Cache** first → if found, returns (10ms)
+6. If not in cache, fetches from **SQL Database** (50ms)
+7. Response cached in **Redis Cache** and **CDN** for next requests
 
-### Read Path Optimization
-```
-Request: GET /abc123
-
-1. Check CDN edge cache → Hit? Return (5ms)
-2. Check Redis cache → Hit? Return (10ms)
-3. Check database → Return (50ms)
-
-Most requests served in <10ms
-```
-
-### Cache Hit Rates
-```
-Scenario          Cache Hit Rate
-──────────────────────────────────
-Normal traffic    70-80%
-Viral paste       95-99%
-Just created      0% (cold)
-After warmup      90%+
-```
+### Why This Design Works
+- CDN serves 90%+ of reads from edge locations
+- Redis Cache handles the rest without hitting database
+- Database only touched for new pastes or rare reads
+- Can handle millions of requests per second
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('CDN', 'Networking', 200, 350),
       _createIcon('Global Load Balancer', 'Networking', 400, 350),
-      _createIcon('Paste Service', 'Application Services', 600, 250),
-      _createIcon('Redis', 'Caching,Performance', 600, 450),
+      _createIcon('Content Storage', 'Application Services', 600, 250),
+      _createIcon('Redis Cache', 'Caching,Performance', 600, 450),
       _createIcon('SQL Database', 'Database & Storage', 800, 350),
     ],
     'connections': [
@@ -246,87 +164,52 @@ After warmup      90%+
 ## Content Moderation Architecture
 
 ### What This System Does
-Pastebin can be abused for malware, phishing, or illegal content. This system automatically detects and removes harmful pastes while allowing legitimate use.
+Automatically scans pastes for malware, phishing, and illegal content before they go public.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: Paste Submitted**
-User submits paste. Before storing, moderation begins.
+**Web Browser** - User submitting a paste
 
-**Step 2: Automated Scanning**
-Content is analyzed by multiple detectors:
-- Malware signatures (virus patterns)
-- Phishing keywords (account, password, verify)
-- Personal data (SSN, credit card patterns)
-- Banned domains (known malicious URLs)
-- Profanity filter (configurable)
+**API Gateway** - Receives the paste and sends it for scanning before storing
 
-**Step 3: Risk Score Calculated**
-Each detector returns a score:
-- Malware detector: 0.9 (high risk)
-- Phishing detector: 0.1 (low)
-- Combined score: 0.7 (concerning)
+**Security Scanner** (first) - Main scanning coordinator that runs all checks
 
-**Step 4: Decision Made**
-Based on score:
-- Score < 0.3: Auto-approve
-- Score 0.3-0.7: Flag for human review
-- Score > 0.7: Auto-reject
+**Security Scanner** (top) - Checks for malware signatures and virus patterns
 
-**Step 5: Human Review Queue**
-Flagged pastes go to moderators:
-- View content and context
-- Approve, reject, or escalate
-- Feedback improves ML models
+**Fraud Detection** - Detects personal info (credit cards, SSN) and phishing attempts
 
-**Step 6: Takedown System**
-If illegal content found later:
-- DMCA/legal requests processed
-- Content removed immediately
-- IP/account may be banned
+**Security Scanner** (bottom) - Scans URLs for known malicious domains
 
-### Component Breakdown
+**Message Queue** - Holds flagged pastes for human moderators to review
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Scan Service | Runs all detectors | Multi-layer check |
-| Malware Scanner | Virus/malware patterns | Security |
-| PII Detector | Personal data detection | Privacy |
-| URL Scanner | Check linked domains | Phishing prevention |
-| Review Queue | Human moderation | Accuracy |
-| Ban Service | Block bad actors | Repeat offenders |
+**Authorization** - Blocks/bans users who repeatedly post harmful content
 
-### Detection Patterns
-```
-Pattern Type      Examples
-─────────────────────────────────────
-Malware           "eval(base64_decode", ".exe download"
-Phishing          "verify your account", "login expired"
-PII               SSN: XXX-XX-XXXX, Credit card patterns
-Spam              Repeated URLs, lottery scams
-```
+### How They Work Together
 
-### False Positive Handling
-```
-Legitimate code might trigger detectors:
-- "password" in a tutorial about auth
-- eval() in JavaScript examples
+1. User submits paste through **Web Browser**
+2. **API Gateway** intercepts and forwards to **Security Scanner**
+3. **Security Scanner** runs three parallel checks:
+   - Top scanner looks for malware code
+   - **Fraud Detection** checks for personal data leaks
+   - Bottom scanner validates all URLs
+4. If any check fails, paste goes to **Message Queue** for human review
+5. Repeat offenders get blocked by **Authorization** service
+6. Clean pastes proceed to storage
 
-Solutions:
-1. Context-aware detection
-2. User reputation scoring
-3. Human review for edge cases
-```
+### Why This Design Works
+- Multiple scanners catch different threat types
+- Humans review edge cases (reduces false positives)
+- Bad actors get banned permanently
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Scan Service', 'Security,Monitoring', 400, 350),
-      _createIcon('Malware Scanner', 'Security,Monitoring', 600, 200),
-      _createIcon('PII Detector', 'Security,Monitoring', 600, 350),
-      _createIcon('URL Scanner', 'Security,Monitoring', 600, 500),
-      _createIcon('Review Queue', 'Application Services', 800, 350),
-      _createIcon('Ban Service', 'Security,Monitoring', 800, 550),
+      _createIcon('Security Scanner', 'Security,Monitoring', 400, 350),
+      _createIcon('Security Scanner', 'Security,Monitoring', 600, 200),
+      _createIcon('Fraud Detection', 'Security,Monitoring', 600, 350),
+      _createIcon('Security Scanner', 'Security,Monitoring', 600, 500),
+      _createIcon('Message Queue', 'Application Services', 800, 350),
+      _createIcon('Authorization', 'Security,Monitoring', 800, 550),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Submit'),
@@ -348,86 +231,48 @@ Solutions:
 ## Syntax Highlighting System Architecture
 
 ### What This System Does
-Code pastes look better with syntax highlighting - keywords in blue, strings in green, comments in gray. This system detects languages and applies appropriate highlighting.
+Makes code pastes readable with colored syntax - keywords blue, strings green, comments gray.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: User Selects Language (or Auto-detect)**
-User can specify language or let system guess:
-- Explicit: "JavaScript"
-- Auto-detect from content patterns
+**Web Browser** - Where user views the formatted code
 
-**Step 2: Language Detection**
-If auto-detect, the Detector analyzes:
-- File extension hints (if provided)
-- Keywords: "def", "function", "public class"
-- Syntax patterns: indentation, brackets
-- Common library names
+**Content Storage** - Retrieves the raw paste content
 
-**Step 3: Tokenizer Parses Code**
-The Tokenizer breaks code into tokens:
-```javascript
-function hello() { return "world"; }
-→ [KEYWORD:function, IDENTIFIER:hello, LPAREN, RPAREN, 
-   LBRACE, KEYWORD:return, STRING:"world", SEMICOLON, RBRACE]
-```
+**Analytics Service** (top) - Detects programming language from code patterns
 
-**Step 4: Highlighter Applies Styles**
-Each token type maps to a color:
-- KEYWORD → blue
-- STRING → green
-- COMMENT → gray
-- IDENTIFIER → default
+**Stream Processor** - Breaks code into tokens (keywords, strings, operators)
 
-**Step 5: Output as HTML**
-Result is HTML with styled spans:
-```html
-<span class="keyword">function</span> 
-<span class="identifier">hello</span>() { 
-  <span class="keyword">return</span> 
-  <span class="string">"world"</span>; 
-}
-```
+**Analytics Service** (bottom) - Applies colors to each token type
 
-**Step 6: Client-side Rendering**
-CSS provides the actual colors. Different themes available (dark mode, light mode, etc.)
+**Configuration Service** - Provides color themes (dark mode, light mode)
 
-### Component Breakdown
+**Cache** - Stores already-highlighted pastes to avoid re-processing
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Language Detector | Identifies programming language | Auto-detection |
-| Tokenizer | Parses into tokens | Syntax analysis |
-| Highlighter | Applies color styles | Visual formatting |
-| Theme Engine | Provides color schemes | Customization |
-| Line Numberer | Adds line numbers | Navigation |
+### How They Work Together
 
-### Supported Languages
-```
-Popular: JavaScript, Python, Java, C++, Go, Rust
-Web: HTML, CSS, JSON, YAML, XML
-Systems: C, Assembly, Shell, PowerShell
-Data: SQL, GraphQL, Markdown
-And 100+ more...
-```
+1. User opens paste in **Web Browser**
+2. **Content Storage** fetches the raw code
+3. **Analytics Service** (top) detects language: "This is JavaScript"
+4. **Stream Processor** tokenizes: function → KEYWORD, "hello" → STRING
+5. **Analytics Service** (bottom) applies colors to tokens
+6. **Configuration Service** provides the color theme
+7. Result cached in **Cache** for next viewer
+8. Colored HTML sent to **Web Browser**
 
-### Performance Optimization
-```
-Strategy              When to Use
-─────────────────────────────────────
-Server-side render    Small pastes (<1MB)
-Client-side render    Large pastes (offload server)
-Virtual scrolling     Very large (>10k lines)
-Lazy highlighting     Huge files (only visible)
-```
+### Why This Design Works
+- Language detection handles 100+ languages
+- Tokenizer understands syntax rules
+- Themes let users pick their colors
+- Cache avoids re-processing popular pastes
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
-      _createIcon('Paste Service', 'Application Services', 250, 350),
-      _createIcon('Language Detector', 'Data Processing', 450, 200),
-      _createIcon('Tokenizer', 'Data Processing', 450, 350),
-      _createIcon('Highlighter', 'Application Services', 450, 500),
-      _createIcon('Theme Engine', 'Application Services', 650, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
+      _createIcon('Content Storage', 'Application Services', 250, 350),
+      _createIcon('Analytics Service', 'Data Processing', 450, 200),
+      _createIcon('Stream Processor', 'Data Processing', 450, 350),
+      _createIcon('Analytics Service', 'Application Services', 450, 500),
+      _createIcon('Configuration Service', 'Application Services', 650, 350),
       _createIcon('Cache', 'Caching,Performance', 650, 550),
     ],
     'connections': [
@@ -449,92 +294,47 @@ Lazy highlighting     Huge files (only visible)
 ## Private and Encrypted Pastes Architecture
 
 ### What This System Does
-Some pastes contain sensitive info. This system provides password protection and client-side encryption where even the server can't read the content.
+Protects sensitive pastes with passwords or encryption so even the server cannot read them.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: User Chooses Privacy Level**
-Options:
-- Public: Anyone with URL
-- Unlisted: URL only (not searchable)
-- Password: Requires password to view
-- Encrypted: End-to-end encrypted
+**Web Browser** - Where encryption/decryption happens (client-side)
 
-**Step 2: Password Protection**
-If password chosen:
-- User sets password: "secret123"
-- Server stores hash: bcrypt("secret123")
-- Viewer must enter password to decrypt
+**Security Gateway** - Handles client-side encryption before sending to server
 
-**Step 3: End-to-End Encryption**
-For maximum security:
-- Client generates encryption key
-- Content encrypted in browser
-- Only encrypted blob sent to server
-- Key is in URL fragment (never sent to server!)
+**API Gateway** - Receives encrypted data, never sees the actual content
 
-**Step 4: URL with Key**
-URL format: paste.io/abc123#encryptionKey
-- "abc123" sent to server (paste ID)
-- "encryptionKey" stays in browser (fragment)
-- Server never sees the decryption key
+**Content Storage** - Stores encrypted blobs, cannot decrypt them
 
-**Step 5: Viewer Decrypts**
-Viewer opens URL:
-- Browser extracts key from fragment
-- Fetches encrypted blob from server
-- Decrypts locally in browser
-- Server only ever saw encrypted data
+**Authentication** - Hashes passwords for password-protected pastes
 
-**Step 6: Burn After Reading**
-Optional one-time view:
-- After first successful view
-- Paste is immediately deleted
-- Guarantees single recipient
+**Expiration Service** - Handles "burn after reading" - deletes after first view
 
-### Component Breakdown
+**SQL Database** - Stores encrypted content and password hashes
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Crypto Service | Client-side encryption | Privacy |
-| Password Hasher | Secure password storage | Authentication |
-| Burn Service | One-time view management | Security |
-| Access Logger | Tracks view attempts | Audit |
-| Key Generator | Creates encryption keys | Cryptography |
+### How They Work Together
 
-### Encryption Flow
-```
-CREATE:
-1. Generate AES-256 key in browser
-2. Encrypt content with key
-3. Send encrypted blob to server
-4. Return URL with key in fragment
+1. User types paste in **Web Browser** and sets password
+2. **Security Gateway** encrypts content in browser, generates key
+3. Encrypted blob sent through **API Gateway** to **Content Storage**
+4. **Authentication** hashes the password (never stores plaintext)
+5. Data stored in **SQL Database** (server only has encrypted blob)
+6. For "burn after reading", **Expiration Service** deletes after first view
 
-VIEW:
-1. Parse fragment for key
-2. Fetch encrypted blob
-3. Decrypt with key locally
-4. Display plaintext
-```
-
-### Security Levels
-```
-Level         Server Sees     URL Reveals
-──────────────────────────────────────────────
-Public        Content         Content
-Unlisted      Content         Content
-Password      Content         Nothing without password
-Encrypted     Only blob       Content (key in fragment)
-```
+### Why This Design Works
+- Encryption happens in browser (server never sees plaintext)
+- Password hashing means even admins cannot see passwords
+- Burn after reading guarantees single recipient
+- Key in URL fragment never reaches server
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
-      _createIcon('Crypto Service', 'Security,Monitoring', 200, 250),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
+      _createIcon('Security Gateway', 'Security,Monitoring', 200, 250),
       _createIcon('API Gateway', 'Networking', 200, 450),
-      _createIcon('Paste Service', 'Application Services', 400, 350),
-      _createIcon('Password Hasher', 'Security,Monitoring', 600, 250),
-      _createIcon('Burn Service', 'Application Services', 600, 450),
-      _createIcon('Database', 'Database & Storage', 800, 350),
+      _createIcon('Content Storage', 'Application Services', 400, 350),
+      _createIcon('Authentication', 'Security,Monitoring', 600, 250),
+      _createIcon('Expiration Service', 'Application Services', 600, 450),
+      _createIcon('SQL Database', 'Database & Storage', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Encrypt'),
@@ -554,88 +354,51 @@ Encrypted     Only blob       Content (key in fragment)
 ## API and Integrations Architecture
 
 ### What This System Does
-Developers integrate paste functionality into their tools - CLI tools, IDE extensions, chat bots. This system provides a REST API with authentication, rate limiting, and usage tracking.
+Lets developers create pastes from CLI tools, IDE plugins, and apps using a REST API.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: Developer Gets API Key**
-Developer signs up and creates an API key:
-- Key: "pk_live_abc123..."
-- Associated with their account
-- Can create multiple keys for different apps
+**Desktop Client** (top) - CLI tool (command line interface)
 
-**Step 2: API Request Made**
-CLI tool creates paste:
-```bash
-curl -X POST https://api.paste.io/v1/pastes \\
-  -H "Authorization: Bearer pk_live_abc123" \\
-  -d "content=Hello World" \\
-  -d "syntax=text"
-```
+**Desktop Client** (bottom) - IDE plugin (VS Code, IntelliJ)
 
-**Step 3: Rate Limiter Checks**
-Before processing:
-- Check requests in last minute
-- Free tier: 60/minute
-- Paid tier: 1000/minute
-- Over limit: Return 429 Too Many Requests
+**API Gateway** - Receives all API requests, routes them to services
 
-**Step 4: Request Processed**
-If within limits:
-- Create paste as normal
-- Return JSON response with URL
-- Log usage for billing
+**Authentication** - Validates API keys (pk_live_abc123...)
 
-**Step 5: Usage Tracked**
-Every API call is logged:
-- Timestamp, endpoint, response time
-- Used for rate limiting
-- Used for billing (if paid tier)
-- Analytics dashboards
+**Rate Limiter** - Limits requests per minute to prevent abuse
 
-**Step 6: Webhooks Notify**
-Optional: Send webhook on paste events:
-- Paste created/viewed/expired
-- POST to customer's URL
-- Enables real-time integrations
+**Content Storage** - Creates and stores pastes
 
-### Component Breakdown
+**Metrics Collector** - Logs every API call for billing and analytics
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| API Gateway | Routes API requests | Entry point |
-| Auth Service | Validates API keys | Security |
-| Rate Limiter | Enforces usage limits | Fair usage |
-| Usage Tracker | Logs all requests | Billing/analytics |
-| Webhook Service | Sends notifications | Integrations |
-| SDK Generator | Creates client libraries | Developer experience |
+**Notification Service** - Sends webhooks when pastes are created/viewed
 
-### API Endpoints
-```
-POST   /v1/pastes           Create paste
-GET    /v1/pastes/:id       Get paste
-DELETE /v1/pastes/:id       Delete paste
-GET    /v1/pastes           List user's pastes
-GET    /v1/usage            Get usage stats
-```
+### How They Work Together
 
-### Rate Limit Headers
-```
-HTTP/1.1 200 OK
-X-RateLimit-Limit: 60
-X-RateLimit-Remaining: 45
-X-RateLimit-Reset: 1642000060
-```
+1. Developer's **Desktop Client** (CLI or IDE) makes API call
+2. **API Gateway** receives request
+3. **Authentication** verifies API key is valid
+4. **Rate Limiter** checks if under limit (60 req/min free, 1000 paid)
+5. If allowed, **Content Storage** creates the paste
+6. **Metrics Collector** logs the request for billing
+7. **Notification Service** sends webhook to developer's server (optional)
+
+### Why This Design Works
+- API keys identify who is making requests
+- Rate limiting prevents abuse and ensures fair usage
+- Usage tracking enables pay-per-use billing
+- Webhooks enable real-time integrations
 ''',
     'icons': [
-      _createIcon('CLI Tool', 'Client & Interface', 50, 250),
-      _createIcon('IDE Plugin', 'Client & Interface', 50, 450),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 250),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 450),
       _createIcon('API Gateway', 'Networking', 250, 350),
-      _createIcon('Auth Service', 'Security,Monitoring', 450, 200),
+      _createIcon('Authentication', 'Security,Monitoring', 450, 200),
       _createIcon('Rate Limiter', 'Networking', 450, 350),
-      _createIcon('Paste Service', 'Application Services', 450, 500),
-      _createIcon('Usage Tracker', 'Data Processing', 650, 350),
-      _createIcon('Webhook Service', 'Message Systems', 850, 350),
+      _createIcon('Content Storage', 'Application Services', 450, 500),
+      _createIcon('Metrics Collector', 'Data Processing', 650, 350),
+      _createIcon('Notification Service', 'Message Systems', 850, 350),
     ],
     'connections': [
       _createConnection(0, 2, label: 'API Call'),
@@ -656,87 +419,48 @@ X-RateLimit-Reset: 1642000060
 ## Search and Discovery Architecture
 
 ### What This System Does
-Users can search public pastes by content, title, or tags. Recent/trending pastes are shown on the homepage.
+Lets users search public pastes by content, title, or tags. Shows trending pastes on homepage.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: Paste Indexed on Creation**
-When a public paste is created:
-- Content tokenized and indexed
-- Title, tags, syntax added to metadata
-- Added to search index (Elasticsearch)
+**Web Browser** - User searching for pastes
 
-**Step 2: User Searches**
-User searches for "python sort algorithm":
-- Query sent to Search Service
-- Elasticsearch finds matching documents
-- Results ranked by relevance
+**API Gateway** - Routes search queries to the right service
 
-**Step 3: Relevance Scoring**
-Results ranked by:
-- Title matches (highest weight)
-- Tag matches (high weight)
-- Content matches (medium weight)
-- Recency boost (newer = slightly higher)
-- Popularity boost (more views = higher)
+**Search Engine** (main) - Handles search queries, ranks results by relevance
 
-**Step 4: Results Returned**
-Top results returned with snippets:
-- Matching text highlighted
-- Preview of content shown
-- Metadata (syntax, date, author)
+**Search Engine** (top right) - The search index storing all indexed paste content
 
-**Step 5: Trending Algorithm**
-Homepage shows trending pastes:
-- Views in last hour / age
-- High ratio = trending
-- Updated every minute
+**Analytics Engine** - Calculates trending pastes based on views/time
 
-**Step 6: Browse by Category**
-Users can browse:
-- By syntax: All Python pastes
-- By tag: #tutorial, #snippet
-- By date: Today, this week
+**Configuration Service** - Manages categories and browse filters
 
-### Component Breakdown
+**Search Engine** (bottom) - Indexer that adds new pastes to the search index
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Search Service | Handles search queries | Core search |
-| Search Index | Stores indexed documents | Fast lookups |
-| Indexer | Adds new pastes to index | Keeps index current |
-| Trending Service | Calculates trending pastes | Discovery |
-| Category Service | Organizes by type | Browsing |
+### How They Work Together
 
-### Search Query Examples
-```
-Query                    Matches
-───────────────────────────────────────────
-"python sort"            Content contains both
-title:quicksort          Title contains word
-syntax:javascript        All JS pastes
-author:johndoe           Pastes by user
-created:today            Created today
-```
+1. User types search in **Web Browser**: "python sort algorithm"
+2. Query goes through **API Gateway** to **Search Engine**
+3. **Search Engine** queries the **Search Engine** index for matches
+4. Results ranked by: title match, content match, recency, popularity
+5. **Analytics Engine** adds trending boost (viral pastes rank higher)
+6. **Configuration Service** allows filtering by category (syntax, tags)
+7. When new pastes are created, bottom **Search Engine** indexes them
 
-### Trending Score
-```
-score = views_last_hour / (age_hours + 2)^1.5
-
-Example:
-Paste A: 1000 views, 1 hour old = 1000 / 3^1.5 = 192
-Paste B: 500 views, 0.5 hour old = 500 / 2.5^1.5 = 126
-Paste A is trending higher
-```
+### Why This Design Works
+- Full-text search finds content inside pastes
+- Trending algorithm surfaces popular content
+- Categories help users browse by topic
+- Indexer keeps search up-to-date
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Search Service', 'Application Services', 400, 350),
-      _createIcon('Search Index', 'Database & Storage', 600, 250),
-      _createIcon('Trending Service', 'Data Processing', 600, 450),
-      _createIcon('Category Service', 'Application Services', 800, 350),
-      _createIcon('Indexer', 'Data Processing', 400, 550),
+      _createIcon('Search Engine', 'Application Services', 400, 350),
+      _createIcon('Search Engine', 'Database & Storage', 600, 250),
+      _createIcon('Analytics Engine', 'Data Processing', 600, 450),
+      _createIcon('Configuration Service', 'Application Services', 800, 350),
+      _createIcon('Search Engine', 'Data Processing', 400, 550),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Search'),
@@ -756,95 +480,48 @@ Paste A is trending higher
 ## Analytics and Metrics Architecture
 
 ### What This System Does
-Paste creators want to know: How many views? Where from? When? This system tracks detailed analytics for each paste.
+Tracks how many views each paste gets, where visitors come from, and when they view.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: View Event Captured**
-Every paste view generates an event:
-```json
-{
-  "paste_id": "abc123",
-  "timestamp": 1642000000,
-  "ip_hash": "a1b2c3...",
-  "referrer": "reddit.com/r/programming",
-  "user_agent": "Chrome/97...",
-  "country": "US"
-}
-```
+**Web Browser** - Viewer accessing a paste
 
-**Step 2: Events Streamed**
-Events sent to message queue for processing:
-- High throughput (millions per day)
-- Async processing (doesn't slow down page load)
-- Durable (won't lose events)
+**Metrics Collector** - Captures every view event (paste ID, time, referrer, country)
 
-**Step 3: Real-time Aggregation**
-Stream processor updates counters in real-time:
-- Total views: increment
-- Views by country: increment US counter
-- Views by hour: increment current hour bucket
+**Message Queue** - Buffers events for async processing (doesn't slow page load)
 
-**Step 4: Batch Analytics**
-Nightly jobs compute deeper metrics:
-- Unique visitors (IP deduplication)
-- Bounce rate (view duration)
-- Geographic distribution
-- Referrer breakdown
+**Stream Processor** - Updates real-time counters (total views, views this hour)
 
-**Step 5: Dashboard Displayed**
-Paste creator sees analytics:
-- Views over time (line chart)
-- Top referrers (bar chart)
-- Geographic map (world map)
-- Unique vs. total views
+**Batch Processor** - Runs nightly for complex analytics (unique visitors, trends)
 
-**Step 6: Privacy Considerations**
-We anonymize data:
-- IP addresses hashed
-- No personal identification
-- Aggregate only, no individual tracking
-- GDPR compliant
+**Time Series Database** - Stores metrics over time (views per hour/day/month)
 
-### Component Breakdown
+**Analytics Service** - Serves dashboard showing charts and graphs
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Event Collector | Captures view events | Data ingestion |
-| Stream Processor | Real-time aggregation | Live counts |
-| Batch Processor | Deep analytics | Complex metrics |
-| Time Series DB | Stores metrics | Historical data |
-| Dashboard API | Serves analytics | User-facing |
+### How They Work Together
 
-### Metrics Tracked
-```
-Metric              Granularity    Retention
-─────────────────────────────────────────────
-Total views         Real-time      Forever
-Views by hour       Hourly         90 days
-Unique visitors     Daily          90 days
-Referrer breakdown  Daily          30 days
-Country stats       Daily          90 days
-```
+1. User views paste in **Web Browser**
+2. **Metrics Collector** captures: paste ID, timestamp, referrer, country
+3. Event published to **Message Queue** (async, fast response)
+4. **Stream Processor** updates live counters immediately
+5. **Batch Processor** runs hourly/daily for deeper analysis
+6. Both store results in **Time Series Database**
+7. Paste owner views **Analytics Service** dashboard
 
-### Privacy Safeguards
-```
-✓ IP addresses hashed (not stored raw)
-✓ No cookies or tracking
-✓ No user identification
-✓ Aggregated data only
-✓ Minimum data retention
-✓ GDPR/CCPA compliant
-```
+### Why This Design Works
+- Async processing keeps page loads fast
+- Real-time counts available instantly
+- Batch processing handles complex analytics
+- Time series DB efficiently stores metrics over time
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
-      _createIcon('Event Collector', 'Data Processing', 250, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
+      _createIcon('Metrics Collector', 'Data Processing', 250, 350),
       _createIcon('Message Queue', 'Message Systems', 450, 350),
       _createIcon('Stream Processor', 'Data Processing', 650, 250),
       _createIcon('Batch Processor', 'Data Processing', 650, 450),
       _createIcon('Time Series Database', 'Database & Storage', 850, 350),
-      _createIcon('Dashboard API', 'Application Services', 850, 550),
+      _createIcon('Analytics Service', 'Application Services', 850, 550),
     ],
     'connections': [
       _createConnection(0, 1, label: 'View Event'),
@@ -865,93 +542,51 @@ Country stats       Daily          90 days
 ## Storage Optimization Architecture
 
 ### What This System Does
-Storing millions of pastes requires smart storage. This system compresses content, deduplicates identical pastes, and uses tiered storage for cost optimization.
+Saves storage costs by compressing pastes, avoiding duplicates, and moving old data to cheaper storage.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: Content Compressed**
-When paste is stored:
-- Apply gzip/zstd compression
-- Typical code compresses 3-5x
-- 10KB paste → 2-3KB stored
+**Content Storage** - Receives new pastes for storage
 
-**Step 2: Deduplication Check**
-Hash the content:
-- SHA-256 of raw content
-- Check if hash exists in database
-- If exists, reference existing blob instead of duplicating
+**Batch Processor** - Compresses paste content (10KB → 2KB)
 
-**Step 3: Hot/Cold Tiering**
-Storage tiers by access frequency:
-- Hot (SSD): Last 7 days, frequently accessed
-- Warm (HDD): 7-90 days
-- Cold (Object Storage): 90+ days
-- Archive (Glacier): Very old, rarely accessed
+**Duplicate Detection** - Checks if identical content already exists
 
-**Step 4: Access Patterns Tracked**
-Monitor which pastes are accessed:
-- Recently created → likely hot
-- Old but popular → keep warm
-- Old and unused → move to cold
+**Configuration Service** - Tier manager that decides where to store data
 
-**Step 5: Background Migration**
-Cron job moves data between tiers:
-- Check access recency
-- Move cold data to cheaper storage
-- Migrate back to hot if accessed
+**Object Storage** (Hot) - Fast SSD storage for recent/popular pastes
 
-**Step 6: Cost Savings**
-Different tiers have different costs:
-- Hot SSD: \$0.20/GB/month
-- Warm HDD: \$0.05/GB/month
-- Cold Object: \$0.023/GB/month
-- Archive: \$0.004/GB/month
+**Object Storage** (Warm) - Slower HDD for older but occasionally accessed
 
-### Component Breakdown
+**Object Storage** (Cold) - Cheap archive for rarely accessed old pastes
 
-| Component | What It Does | Why It's Needed |
-|-----------|--------------|-----------------|
-| Compression Service | Compresses content | Space savings |
-| Dedup Engine | Finds duplicate content | Eliminate copies |
-| Tier Manager | Moves data between tiers | Cost optimization |
-| Hot Storage | Fast SSD storage | Active pastes |
-| Cold Storage | Cheap object storage | Old pastes |
-| Access Tracker | Monitors access patterns | Tier decisions |
+**Metrics Collector** - Tracks access patterns to decide tier placement
 
-### Deduplication Example
-```
-Paste 1: "Hello World" → hash: abc123 → stored
-Paste 2: "Hello World" → hash: abc123 → reference paste 1
-Paste 3: "Hello World" → hash: abc123 → reference paste 1
+### How They Work Together
 
-Storage: 1 blob instead of 3 = 66% savings
-```
+1. New paste arrives at **Content Storage**
+2. **Batch Processor** compresses content (saves 60-80% space)
+3. **Duplicate Detection** hashes content - if already exists, just reference it
+4. **Configuration Service** decides tier based on age/popularity
+5. New/popular → **Hot Storage** (fast, expensive)
+6. Older → **Warm Storage** (medium speed, cheaper)
+7. Old/unused → **Cold Storage** (slow, very cheap)
+8. **Metrics Collector** watches access patterns and updates tier decisions
 
-### Storage Cost Model
-```
-1 Million Pastes:
-- Average size: 5KB (2KB compressed)
-- Total storage: 2GB
-
-Without optimization:
-- All on SSD: \$0.40/month
-
-With tiering:
-- 10% hot: \$0.04/month
-- 30% warm: \$0.03/month
-- 60% cold: \$0.028/month
-- Total: \$0.098/month (75% savings)
-```
+### Why This Design Works
+- Compression: 5x space savings
+- Deduplication: Identical pastes stored once
+- Tiering: 75% cost reduction by using appropriate storage
 ''',
     'icons': [
-      _createIcon('Paste Service', 'Application Services', 50, 350),
-      _createIcon('Compression Service', 'Data Processing', 250, 250),
-      _createIcon('Dedup Engine', 'Data Processing', 250, 450),
-      _createIcon('Tier Manager', 'System Utilities', 450, 350),
+      _createIcon('Content Storage', 'Application Services', 50, 350),
+      _createIcon('Batch Processor', 'Data Processing', 250, 250),
+      _createIcon('Duplicate Detection', 'Data Processing', 250, 450),
+      _createIcon('Configuration Service', 'System Utilities', 450, 350),
       _createIcon('Object Storage', 'Database & Storage', 650, 200, id: 'Hot'),
       _createIcon('Object Storage', 'Database & Storage', 650, 350, id: 'Warm'),
       _createIcon('Object Storage', 'Database & Storage', 650, 500, id: 'Cold'),
-      _createIcon('Access Tracker', 'Data Processing', 850, 350),
+      _createIcon('Metrics Collector', 'Data Processing', 850, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Compress'),
@@ -973,64 +608,60 @@ With tiering:
 ## Complete Pastebin System Architecture
 
 ### What This System Does
-This is a production-ready Pastebin combining all features: scalable storage, content moderation, syntax highlighting, encryption, API access, search, and analytics.
+Production-ready Pastebin with all features: scalable storage, moderation, API, search, and analytics.
 
-### How It Works Step-by-Step
+### Icons Explained
 
-**Step 1: Create Paste**
-Request → Moderate → Compress → Store → Generate URL → Return
+**Web Browser** - Users creating/viewing pastes via website
 
-**Step 2: View Paste**
-Request → Auth (if needed) → Cache check → Fetch → Highlight → Track view → Return
+**Desktop Client** - CLI tools and IDE plugins using the API
 
-**Step 3: Search**
-Query → Search index → Rank results → Return matches
+**CDN** - Caches popular pastes at edge servers worldwide
 
-**Step 4: API Access**
-Auth → Rate limit → Process → Track usage → Return
+**API Gateway** - Entry point for all requests, routes to services
 
-**Step 5: Analytics**
-Collect events → Process → Store metrics → Display dashboard
+**Rate Limiter** - Prevents abuse by limiting requests per user
 
-### Full Component List
+**Content Storage** - Core service that creates and retrieves pastes
 
-| Category | Components |
-|----------|------------|
-| Client | Web, Mobile, CLI, API |
-| Edge | CDN, Load Balancer |
-| Core | Paste Service, ID Generator |
-| Content | Syntax Highlighting, Moderation |
-| Storage | Database, Cache, Object Storage |
-| Security | Encryption, Auth, Rate Limiting |
-| Discovery | Search, Trending, Categories |
-| Analytics | Events, Metrics, Dashboards |
+**Content Moderation** - Scans for malware, spam, illegal content
 
-### Scale Numbers
-```
-Pastes per day: 500,000
-Views per day: 50,000,000
-Storage: 500GB (compressed)
-Cache hit rate: 85%
-API calls: 10,000,000/day
-```
+**Search Engine** - Indexes pastes for full-text search
 
-### Architecture Principles
-1. **Cache Everything**: Reads far exceed writes
-2. **Compress Aggressively**: Text compresses well
-3. **Tier Storage**: Hot/warm/cold optimization
-4. **Moderate Proactively**: Prevent abuse
-5. **Privacy by Default**: Minimal data collection
+**Redis Cache** - Fast in-memory cache for frequently accessed pastes
+
+**SQL Database** - Stores paste metadata and content
+
+**Object Storage** - Stores large paste content cheaply
+
+**Analytics Engine** - Tracks views, generates statistics
+
+### How They Work Together
+
+1. **Web Browser** users request through **CDN** (cache hit = instant response)
+2. **Desktop Client** (API users) connect via **API Gateway**
+3. **Rate Limiter** checks usage limits before processing
+4. **Content Storage** handles create/read, uses **Content Moderation** for safety
+5. **Search Engine** enables finding pastes by content
+6. **Redis Cache** speeds up reads, **SQL Database** persists data
+7. **Object Storage** holds large content, **Analytics Engine** tracks everything
+
+### Why This Design Works
+- CDN handles 90% of reads at edge
+- Cache handles remaining reads fast
+- Moderation prevents abuse
+- Tiered storage controls costs
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 200),
-      _createIcon('CLI Tool', 'Client & Interface', 50, 400),
+      _createIcon('Web Browser', 'Client & Interface', 50, 200),
+      _createIcon('Desktop Client', 'Client & Interface', 50, 400),
       _createIcon('CDN', 'Networking', 200, 300),
       _createIcon('API Gateway', 'Networking', 350, 300),
       _createIcon('Rate Limiter', 'Networking', 350, 450),
-      _createIcon('Paste Service', 'Application Services', 500, 200),
-      _createIcon('Moderation Service', 'Security,Monitoring', 500, 350),
-      _createIcon('Search Service', 'Application Services', 500, 500),
-      _createIcon('Redis', 'Caching,Performance', 700, 200),
+      _createIcon('Content Storage', 'Application Services', 500, 200),
+      _createIcon('Content Moderation', 'Security,Monitoring', 500, 350),
+      _createIcon('Search Engine', 'Application Services', 500, 500),
+      _createIcon('Redis Cache', 'Caching,Performance', 700, 200),
       _createIcon('SQL Database', 'Database & Storage', 700, 350),
       _createIcon('Object Storage', 'Database & Storage', 700, 500),
       _createIcon('Analytics Engine', 'Data Processing', 900, 350),

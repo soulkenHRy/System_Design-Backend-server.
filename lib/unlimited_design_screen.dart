@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'system_design_canvas_screen_fixed.dart';
+import 'system_description_notebook.dart'; // For CanvasValidationData
 import 'inline_training_data_ai_service.dart'; // Use the pure Dart AI service
 import 'design_manager.dart';
 import 'saved_designs_list_screen.dart';
@@ -161,7 +162,12 @@ class _UnlimitedDesignScreenState extends State<UnlimitedDesignScreen>
   }
 
   // Submit design for AI evaluation using our trained model
-  Future<void> _submitDesignForEvaluation(String question, String notes) async {
+  // Score breakdown: 50% canvas design (data flow) + 50% notes quality
+  Future<void> _submitDesignForEvaluation(
+    String question,
+    String notes,
+    CanvasValidationData? canvasData,
+  ) async {
     print(
       '🚀🚀🚀 SUBMIT: Starting evaluation for ${notes.length} character design 🚀🚀🚀',
     );
@@ -222,7 +228,7 @@ class _UnlimitedDesignScreenState extends State<UnlimitedDesignScreen>
       );
 
       // Use our new inline training data AI model for evaluation
-      final result = await InlineTrainingDataAIService.evaluateDesign(
+      final aiResult = await InlineTrainingDataAIService.evaluateDesign(
         question:
             question.isNotEmpty
                 ? question
@@ -230,23 +236,60 @@ class _UnlimitedDesignScreenState extends State<UnlimitedDesignScreen>
         answer: notes,
       );
 
+      // Calculate canvas score (50% of total) based on data flow health
+      int canvasScore = 0;
+      if (canvasData != null) {
+        final validationResult = _calculateCanvasValidationResult(canvasData);
+        canvasScore = validationResult.canvasScore; // 0-50 points
+      }
+
+      // Calculate notes score (50% of total) from AI evaluation
+      // AI originally gives 0-100, we scale to 0-50
+      final notesScore = ((aiResult.score / 100) * 50).round().clamp(0, 50);
+
+      // Combined total score
+      final totalScore = canvasScore + notesScore;
+
+      // Create result with combined scoring
+      final combinedResult = {
+        'score': totalScore,
+        'canvasScore': canvasScore,
+        'notesScore': notesScore,
+        'feedback':
+            aiResult.feedback +
+            '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+            '📊 SCORE BREAKDOWN\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+            '🎨 Canvas Design Score: $canvasScore/50\n' +
+            '   (Based on data flow & component connectivity)\n' +
+            '📝 Notes Description Score: $notesScore/50\n' +
+            '   (Based on system design explanation quality)\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+            '🏆 TOTAL SCORE: $totalScore/100\n',
+        'concepts': aiResult.concepts,
+        'category': aiResult.category,
+        'isSystemDesignRelated': aiResult.isSystemDesignRelated,
+      };
+
       // Close loading dialog
       Navigator.of(context).pop();
 
-      // Show success snackbar
+      // Show success snackbar with combined score
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('AI evaluation complete! Score: ${result.score}'),
+          content: Text(
+            'AI evaluation complete! Score: $totalScore/100 (Canvas: $canvasScore + Notes: $notesScore)',
+          ),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 3),
         ),
       );
 
       // Save the evaluation result to SharedPreferences for the notebook to access
-      await _saveEvaluationResult(_currentSystemName, result.toJson());
+      await _saveEvaluationResult(_currentSystemName, combinedResult);
 
       // Show results dialog
-      _showAIFeedbackDialog(result.toJson());
+      _showAIFeedbackDialog(combinedResult);
     } catch (e) {
       // Close loading dialog if open
       try {
@@ -266,6 +309,85 @@ class _UnlimitedDesignScreenState extends State<UnlimitedDesignScreen>
 
       _showErrorDialog("Error evaluating design: $e");
     }
+  }
+
+  // Calculate canvas validation result from canvas data
+  // Used for the 50% canvas score calculation
+  CanvasValidationResult _calculateCanvasValidationResult(
+    CanvasValidationData canvasData,
+  ) {
+    final icons = canvasData.icons;
+    final connections = canvasData.connections;
+
+    // Data source icon names (same as in system_design_canvas_screen_fixed.dart)
+    final dataSourceIcons = {
+      'User',
+      'Client',
+      'Mobile App',
+      'Web Browser',
+      'IoT Device',
+      'External API',
+      'Third Party Service',
+      'Webhook',
+      'Sensor',
+      'Admin Panel',
+      'Dashboard',
+      'File Upload',
+      'Stream Source',
+      'Event Source',
+    };
+
+    // Check if there's at least one data source
+    bool hasDataSource = icons.any(
+      (icon) => dataSourceIcons.contains(icon['name']),
+    );
+
+    // Count active (green) connections
+    int activeConnectionCount =
+        connections.where((c) => c['isGreen'] == true).length;
+
+    // Find isolated icons (not connected to anything)
+    Set<int> connectedIconIndices = {};
+    for (var conn in connections) {
+      if (conn['fromIconIndex'] != null)
+        connectedIconIndices.add(conn['fromIconIndex']);
+      if (conn['toIconIndex'] != null)
+        connectedIconIndices.add(conn['toIconIndex']);
+    }
+    int isolatedIconCount = icons.length - connectedIconIndices.length;
+    if (isolatedIconCount < 0) isolatedIconCount = 0;
+
+    // Count blocked icons (icons that don't receive data flow)
+    // For simplicity, count icons that are connected but not receiving green connections
+    int blockedIconCount = 0;
+    if (hasDataSource && icons.isNotEmpty) {
+      // Icons that are connected but not part of active (green) flow
+      Set<int> activeFlowIcons = {};
+      for (var conn in connections) {
+        if (conn['isGreen'] == true) {
+          if (conn['fromIconIndex'] != null)
+            activeFlowIcons.add(conn['fromIconIndex']);
+          if (conn['toIconIndex'] != null)
+            activeFlowIcons.add(conn['toIconIndex']);
+        }
+      }
+      // Blocked = connected but not in active flow
+      for (int i = 0; i < icons.length; i++) {
+        if (connectedIconIndices.contains(i) && !activeFlowIcons.contains(i)) {
+          blockedIconCount++;
+        }
+      }
+    }
+
+    return CanvasValidationResult(
+      warnings: [], // Not used for scoring
+      blockedIconCount: blockedIconCount,
+      isolatedIconCount: isolatedIconCount,
+      totalIconCount: icons.length,
+      totalConnectionCount: connections.length,
+      activeConnectionCount: activeConnectionCount,
+      hasDataSource: hasDataSource,
+    );
   }
 
   // Save evaluation result to SharedPreferences for notebook access

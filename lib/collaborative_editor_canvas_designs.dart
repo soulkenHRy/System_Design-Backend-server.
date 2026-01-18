@@ -126,14 +126,35 @@ WebSocket:
 - One persistent connection
 - Instant push when changes occur
 - Efficient bandwidth usage
+
+### Icons Explained
+
+**Web Browser (User A & User B)** - Users editing the same document simultaneously in their browsers.
+
+**WebSocket Server** - Gateway maintaining persistent real-time connections with all editors.
+
+**Sync Service** - Core service that processes, validates, and broadcasts document changes.
+
+**NoSQL Database** - Document Store persisting the document content and history.
+
+**User Presence** - Tracks who is currently online and viewing/editing the document.
+
+### How They Work Together
+
+1. User A opens document → WebSocket Server connection established
+2. User A types → Sync Service receives change via WebSocket
+3. Sync Service validates and stores in NoSQL Database
+4. Sync Service updates User Presence (who's editing where)
+5. Sync Service broadcasts change back via WebSocket Server
+6. User B receives change instantly (~40ms end-to-end)
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 250, id: 'User A'),
-      _createIcon('Web Viewer', 'Client & Interface', 50, 450, id: 'User B'),
-      _createIcon('WebSocket Gateway', 'Networking', 250, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 250, id: 'User A'),
+      _createIcon('Web Browser', 'Client & Interface', 50, 450, id: 'User B'),
+      _createIcon('WebSocket Server', 'Networking', 250, 350),
       _createIcon('Sync Service', 'Application Services', 450, 350),
-      _createIcon('Document Store', 'Database & Storage', 650, 250),
-      _createIcon('Presence Service', 'Application Services', 650, 450),
+      _createIcon('NoSQL Database', 'Database & Storage', 650, 250),
+      _createIcon('User Presence', 'Application Services', 650, 450),
     ],
     'connections': [
       _createConnection(0, 2, label: 'Edit'),
@@ -214,15 +235,41 @@ With OT:
 
 ### OT Complexity
 OT has edge cases and is notoriously hard to implement correctly. Google Docs team spent years refining it. For this reason, many new systems use CRDTs instead.
+
+### Icons Explained
+
+**Web Browser** - Client where users type and receive real-time updates.
+
+**WebSocket Server** - Maintains connections and receives operations from all users.
+
+**Stream Processor** - OT Engine that transforms concurrent operations for consistency.
+
+**Sync Service** - Sync Server coordinating which operations apply in what order.
+
+**Logging Service** - Operation Log storing every operation for history and undo.
+
+**NoSQL Database** - Persistent storage for document state.
+
+**Configuration Service** - State Machine tracking document versions for consistency.
+
+### How They Work Together
+
+1. Web Browser sends operation → WebSocket Server receives
+2. Stream Processor (OT Engine) transforms against concurrent ops
+3. Sync Service coordinates the ordering of operations
+4. Logging Service stores every operation for complete history
+5. NoSQL Database persists the current document state
+6. Configuration Service tracks version to ensure consistency
+7. Transformed result broadcast back through WebSocket Server
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
-      _createIcon('WebSocket Gateway', 'Networking', 200, 350),
-      _createIcon('OT Engine', 'Data Processing', 400, 250),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
+      _createIcon('WebSocket Server', 'Networking', 200, 350),
+      _createIcon('Stream Processor', 'Data Processing', 400, 250),
       _createIcon('Sync Service', 'Application Services', 400, 450),
-      _createIcon('Operation Log', 'Database & Storage', 600, 250),
-      _createIcon('Document Store', 'Database & Storage', 600, 450),
-      _createIcon('State Machine', 'System Utilities', 800, 350),
+      _createIcon('Logging Service', 'Database & Storage', 600, 250),
+      _createIcon('NoSQL Database', 'Database & Storage', 600, 450),
+      _createIcon('Configuration Service', 'System Utilities', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Operations'),
@@ -311,15 +358,39 @@ X = {id: (2,1), value: 'X', left: (1,1)}
 Merge: A → X → B = "AXB"
 (X comes after A, B comes after A but X has priority)
 ```
+
+### Icons Explained
+
+**Web Browser (User A & User B)** - Users editing with full offline capability via CRDTs.
+
+**Stream Processor** - CRDT Engine that manages conflict-free merge operations.
+
+**Object Storage** - Local Storage persisting documents for offline availability.
+
+**Sync Service** - Peer Sync enabling direct user-to-user synchronization.
+
+**API Gateway** - Optional Sync Gateway for relaying when direct P2P isn't possible.
+
+**Scheduler** - Vector Clock tracking causality and ordering of operations.
+
+### How They Work Together
+
+1. Both users edit locally → Stream Processor (CRDT) manages state
+2. Each user's operations stored in Object Storage locally
+3. When online, Sync Service enables peer-to-peer sync
+4. Users can sync directly (User A ↔ User B) without server
+5. API Gateway provides relay when direct P2P fails (NAT issues)
+6. Scheduler (Vector Clock) ensures causal ordering
+7. Merge is automatic - no conflicts possible with CRDTs
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 250, id: 'User A'),
-      _createIcon('Web Viewer', 'Client & Interface', 50, 450, id: 'User B'),
-      _createIcon('CRDT Engine', 'Data Processing', 250, 350),
-      _createIcon('Local Storage', 'Database & Storage', 450, 250),
-      _createIcon('Peer Sync', 'Networking', 450, 450),
-      _createIcon('Sync Gateway', 'Networking', 650, 350),
-      _createIcon('Vector Clock', 'System Utilities', 650, 550),
+      _createIcon('Web Browser', 'Client & Interface', 50, 250, id: 'User A'),
+      _createIcon('Web Browser', 'Client & Interface', 50, 450, id: 'User B'),
+      _createIcon('Stream Processor', 'Data Processing', 250, 350),
+      _createIcon('Object Storage', 'Database & Storage', 450, 250),
+      _createIcon('Sync Service', 'Networking', 450, 450),
+      _createIcon('API Gateway', 'Networking', 650, 350),
+      _createIcon('Scheduler', 'System Utilities', 650, 550),
     ],
     'connections': [
       _createConnection(0, 2, label: 'Operations'),
@@ -411,16 +482,39 @@ Diana → Red (#DB4437)
 Color derived from hash of user ID
 Same user always gets same color
 ```
+
+### Icons Explained
+
+**Web Browser (User A, B, C)** - Multiple users viewing and editing the document.
+
+**WebSocket Server** - Gateway maintaining connections for presence updates.
+
+**User Presence (Online)** - Presence Service tracking who is currently in the document.
+
+**User Presence (Cursor)** - Cursor Tracker recording cursor positions and selections.
+
+**Redis Cache** - Fast storage for real-time presence and cursor data.
+
+**Message Queue** - Broadcast Service distributing presence updates to all users.
+
+### How They Work Together
+
+1. User A opens document → WebSocket Server notifies User Presence
+2. User Presence updates list of online users
+3. User B moves cursor → WebSocket Server → User Presence (Cursor)
+4. All presence data cached in Redis Cache for speed
+5. Message Queue broadcasts updates to all connected users
+6. Everyone sees colored cursors and online indicators in real-time
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 250, id: 'User A'),
-      _createIcon('Web Viewer', 'Client & Interface', 50, 400, id: 'User B'),
-      _createIcon('Web Viewer', 'Client & Interface', 50, 550, id: 'User C'),
-      _createIcon('WebSocket Gateway', 'Networking', 250, 400),
-      _createIcon('Presence Service', 'Application Services', 450, 300),
-      _createIcon('Cursor Tracker', 'Application Services', 450, 500),
-      _createIcon('Redis', 'Caching,Performance', 650, 400),
-      _createIcon('Broadcast Service', 'Message Systems', 850, 400),
+      _createIcon('Web Browser', 'Client & Interface', 50, 250, id: 'User A'),
+      _createIcon('Web Browser', 'Client & Interface', 50, 400, id: 'User B'),
+      _createIcon('Web Browser', 'Client & Interface', 50, 550, id: 'User C'),
+      _createIcon('WebSocket Server', 'Networking', 250, 400),
+      _createIcon('User Presence', 'Application Services', 450, 300),
+      _createIcon('User Presence', 'Application Services', 450, 500),
+      _createIcon('Redis Cache', 'Caching,Performance', 650, 400),
+      _createIcon('Message Queue', 'Message Systems', 850, 400),
     ],
     'connections': [
       _createConnection(0, 3, label: 'Join'),
@@ -518,14 +612,39 @@ Diff shown:
 
 Deletions in red, insertions in green
 ```
+
+### Icons Explained
+
+**Web Browser** - User viewing version history and restoring past versions.
+
+**Sync Service** - Receives edits and routes them for logging and storage.
+
+**Logging Service** - Operation Log storing every single edit with timestamps.
+
+**Backup Service** - Snapshot Service creating periodic full document snapshots.
+
+**Version Control** - Version Browser UI for exploring document history.
+
+**Stream Processor** - Diff Engine comparing versions to show changes.
+
+**Object Storage** - Stores snapshots for fast restoration without replaying all ops.
+
+### How They Work Together
+
+1. Every edit flows through Sync Service → Logging Service (logged)
+2. Periodically, Backup Service creates full snapshots → Object Storage
+3. User requests history → Version Control shows timeline
+4. Stream Processor computes diffs between versions
+5. User restores old version → new operation created (itself logged)
+6. Complete history preserved - nothing is ever truly lost
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('Sync Service', 'Application Services', 250, 350),
-      _createIcon('Operation Log', 'Database & Storage', 450, 250),
-      _createIcon('Snapshot Service', 'Application Services', 450, 450),
-      _createIcon('Version Browser', 'Application Services', 650, 250),
-      _createIcon('Diff Engine', 'Data Processing', 650, 450),
+      _createIcon('Logging Service', 'Database & Storage', 450, 250),
+      _createIcon('Backup Service', 'Application Services', 450, 450),
+      _createIcon('Version Control', 'Application Services', 650, 250),
+      _createIcon('Stream Processor', 'Data Processing', 650, 450),
       _createIcon('Object Storage', 'Database & Storage', 850, 350),
     ],
     'connections': [
@@ -623,14 +742,42 @@ Pending: Visible inline, owner can act
 Accepted: Edit applied to document
 Rejected: Suggestion removed, text unchanged
 ```
+
+### Icons Explained
+
+**Web Browser** - User adding comments and suggestions to the document.
+
+**API Gateway** - Routes comment and suggestion requests to appropriate services.
+
+**Comment System (Create)** - Comment Service managing comment creation and threads.
+
+**Recommendation Engine** - Suggestion Engine handling proposed edits.
+
+**Document Service** - Anchor Manager keeping comments attached to correct text.
+
+**Comment System (Thread)** - Thread Service managing replies and conversations.
+
+**Notification Service** - Alerts users when someone replies or acts on suggestions.
+
+**NoSQL Database** - Stores all comments, threads, and suggestions.
+
+### How They Work Together
+
+1. User selects text and comments → API Gateway → Comment System
+2. Comment System creates comment, Document Service anchors to text
+3. Others reply → Comment System (Thread) manages conversation
+4. Suggestions → Recommendation Engine tracks proposed changes
+5. Owner accepts/rejects → Document Service applies or discards
+6. Notification Service alerts participants of activity
+7. All data persisted in NoSQL Database
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Comment Service', 'Application Services', 400, 250),
-      _createIcon('Suggestion Engine', 'Application Services', 400, 450),
-      _createIcon('Anchor Manager', 'Data Processing', 600, 250),
-      _createIcon('Thread Service', 'Application Services', 600, 450),
+      _createIcon('Comment System', 'Application Services', 400, 250),
+      _createIcon('Recommendation Engine', 'Application Services', 400, 450),
+      _createIcon('Document Service', 'Data Processing', 600, 250),
+      _createIcon('Comment System', 'Application Services', 600, 450),
       _createIcon('Notification Service', 'Message Systems', 800, 350),
       _createIcon('NoSQL Database', 'Database & Storage', 800, 550),
     ],
@@ -729,15 +876,41 @@ User B: Make "Hello" italic (same time)
 Result after sync: "Hello" is bold AND italic
 Formatting operations merge, they don't conflict!
 ```
+
+### Icons Explained
+
+**Web Browser** - User applying formatting (bold, italic, headings) to document.
+
+**Configuration Service (Toolbar)** - Toolbar Service providing UI formatting controls.
+
+**Stream Processor (Format)** - Format Engine applying and removing formatting.
+
+**Document Service (Attributes)** - Attribute Model storing per-character formatting.
+
+**Document Service (Blocks)** - Block Manager handling paragraphs, lists, and structure.
+
+**Stream Processor (Render)** - Render Engine converting attributes to HTML/DOM.
+
+**Configuration Service (Styles)** - Style Resolver computing final styles with inheritance.
+
+### How They Work Together
+
+1. User clicks Bold → Configuration Service (Toolbar) sends command
+2. Stream Processor (Format) creates formatting operation
+3. Document Service (Attributes) stores character-level formatting
+4. Document Service (Blocks) handles paragraph/list structure
+5. Stream Processor (Render) converts to displayable HTML
+6. Configuration Service (Styles) resolves inherited styles
+7. Formatted document displayed in Web Browser
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
-      _createIcon('Toolbar Service', 'Application Services', 200, 250),
-      _createIcon('Format Engine', 'Data Processing', 200, 450),
-      _createIcon('Attribute Model', 'Database & Storage', 400, 350),
-      _createIcon('Block Manager', 'Application Services', 600, 250),
-      _createIcon('Render Engine', 'Application Services', 600, 450),
-      _createIcon('Style Resolver', 'Data Processing', 800, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
+      _createIcon('Configuration Service', 'Application Services', 200, 250),
+      _createIcon('Stream Processor', 'Data Processing', 200, 450),
+      _createIcon('Document Service', 'Database & Storage', 400, 350),
+      _createIcon('Document Service', 'Application Services', 600, 250),
+      _createIcon('Stream Processor', 'Application Services', 600, 450),
+      _createIcon('Configuration Service', 'Data Processing', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Bold'),
@@ -830,15 +1003,41 @@ Back online:
 4. Clear queue
 5. Resume real-time sync
 ```
+
+### Icons Explained
+
+**Web Browser** - User editing document even without internet connection.
+
+**Object Storage** - Local Storage (IndexedDB) persisting documents locally.
+
+**Message Queue** - Operation Queue buffering pending changes until online.
+
+**Monitoring System** - Network Monitor detecting online/offline state.
+
+**Sync Service** - Sync Engine reconciling local and server changes.
+
+**WebSocket Server** - Reconnects when online to resume real-time sync.
+
+**NoSQL Database** - Server-side persistent storage for documents.
+
+### How They Work Together
+
+1. User edits offline → saved to Object Storage locally
+2. All operations queued in Message Queue (pending sync)
+3. Monitoring System detects connection restored
+4. Sync Service flushes Message Queue to server
+5. Server may have other users' changes → merge/transform
+6. WebSocket Server re-establishes real-time sync
+7. NoSQL Database stores final merged state
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
-      _createIcon('Local Storage', 'Database & Storage', 250, 250),
-      _createIcon('Operation Queue', 'Message Systems', 250, 450),
-      _createIcon('Network Monitor', 'System Utilities', 450, 350),
-      _createIcon('Sync Engine', 'Application Services', 650, 350),
-      _createIcon('WebSocket Gateway', 'Networking', 850, 250),
-      _createIcon('Document Store', 'Database & Storage', 850, 450),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
+      _createIcon('Object Storage', 'Database & Storage', 250, 250),
+      _createIcon('Message Queue', 'Message Systems', 250, 450),
+      _createIcon('Monitoring System', 'System Utilities', 450, 350),
+      _createIcon('Sync Service', 'Application Services', 650, 350),
+      _createIcon('WebSocket Server', 'Networking', 850, 250),
+      _createIcon('NoSQL Database', 'Database & Storage', 850, 450),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Local Save'),
@@ -933,16 +1132,44 @@ Security options:
 - Expire after date
 - Password required
 ```
+
+### Icons Explained
+
+**Web Browser** - User accessing document, subject to permission checks.
+
+**API Gateway** - Entry point routing requests through security checks.
+
+**Authentication** - Auth Service verifying user identity (login).
+
+**Authorization** - Permission Service checking if user can access document.
+
+**Sync Service** - Sharing Service handling share requests and invitations.
+
+**Document Service** - Link Service managing shareable link generation.
+
+**Authorization (Policy)** - Policy Engine enforcing organization-wide rules.
+
+**Logging Service** - Audit Log tracking all access for security.
+
+### How They Work Together
+
+1. User requests document → API Gateway → Authentication (who are you?)
+2. Authorization checks permissions (can you access this?)
+3. If shared via link → Document Service validates link
+4. Authorization (Policy) enforces org rules (no external sharing)
+5. Access granted or denied based on checks
+6. Logging Service records access attempt for audit
+7. Share requests → Sync Service sends invitations
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 350),
+      _createIcon('Web Browser', 'Client & Interface', 50, 350),
       _createIcon('API Gateway', 'Networking', 200, 350),
-      _createIcon('Auth Service', 'Security,Monitoring', 400, 200),
-      _createIcon('Permission Service', 'Security,Monitoring', 400, 350),
-      _createIcon('Sharing Service', 'Application Services', 400, 500),
-      _createIcon('Link Service', 'Application Services', 600, 350),
-      _createIcon('Policy Engine', 'Data Processing', 600, 500),
-      _createIcon('Audit Log', 'Database & Storage', 800, 350),
+      _createIcon('Authentication', 'Security,Monitoring', 400, 200),
+      _createIcon('Authorization', 'Security,Monitoring', 400, 350),
+      _createIcon('Sync Service', 'Application Services', 400, 500),
+      _createIcon('Document Service', 'Application Services', 600, 350),
+      _createIcon('Authorization', 'Data Processing', 600, 500),
+      _createIcon('Logging Service', 'Database & Storage', 800, 350),
     ],
     'connections': [
       _createConnection(0, 1, label: 'Access'),
@@ -1012,21 +1239,59 @@ Storage per doc: 50MB
 3. **Offline-capable**: Full functionality without internet
 4. **Permission-strict**: Security at every layer
 5. **History-complete**: Every change recoverable
+
+### Icons Explained
+
+**Web Browser** - Desktop user editing documents in browser.
+
+**Mobile Client** - Mobile user editing via app.
+
+**Global Load Balancer** - Distributes traffic across servers worldwide.
+
+**WebSocket Server** - Maintains real-time connections for live sync.
+
+**API Gateway** - Handles HTTP requests for document CRUD operations.
+
+**Authentication** - Auth Service verifying user identity.
+
+**Sync Service** - OT/CRDT Engine handling real-time document synchronization.
+
+**Document Service** - Core service for document storage and retrieval.
+
+**User Presence** - Tracks who's online and their cursor positions.
+
+**Comment System** - Manages comments, threads, and suggestions.
+
+**Version Control** - Tracks all changes and enables restoration.
+
+**NoSQL Database** - Persistent storage for all document data.
+
+**Redis Cache** - Fast cache for presence data and hot documents.
+
+### How They Work Together
+
+1. Web/Mobile → Global Load Balancer → WebSocket + API Gateway
+2. Authentication verifies identity before any access
+3. WebSocket Server → Sync Service for real-time edits
+4. Document Service handles storage, Comment System handles annotations
+5. User Presence shows who's editing, Version Control tracks history
+6. NoSQL Database persists everything, Redis Cache speeds up hot paths
+7. Result: Full Google Docs-like collaborative editing
 ''',
     'icons': [
-      _createIcon('Web Viewer', 'Client & Interface', 50, 200),
+      _createIcon('Web Browser', 'Client & Interface', 50, 200),
       _createIcon('Mobile Client', 'Client & Interface', 50, 400),
       _createIcon('Global Load Balancer', 'Networking', 200, 300),
-      _createIcon('WebSocket Gateway', 'Networking', 350, 200),
+      _createIcon('WebSocket Server', 'Networking', 350, 200),
       _createIcon('API Gateway', 'Networking', 350, 400),
-      _createIcon('Auth Service', 'Security,Monitoring', 500, 150),
+      _createIcon('Authentication', 'Security,Monitoring', 500, 150),
       _createIcon('Sync Service', 'Application Services', 500, 300),
       _createIcon('Document Service', 'Application Services', 500, 450),
-      _createIcon('Presence Service', 'Application Services', 700, 200),
-      _createIcon('Comment Service', 'Application Services', 700, 350),
-      _createIcon('Version Service', 'Application Services', 700, 500),
-      _createIcon('Document Store', 'Database & Storage', 900, 300),
-      _createIcon('Redis', 'Caching,Performance', 900, 450),
+      _createIcon('User Presence', 'Application Services', 700, 200),
+      _createIcon('Comment System', 'Application Services', 700, 350),
+      _createIcon('Version Control', 'Application Services', 700, 500),
+      _createIcon('NoSQL Database', 'Database & Storage', 900, 300),
+      _createIcon('Redis Cache', 'Caching,Performance', 900, 450),
     ],
     'connections': [
       _createConnection(0, 2, label: 'Request'),

@@ -450,170 +450,227 @@ class _SystemDesignDemoCanvasState extends State<SystemDesignDemoCanvas> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 6, 4, 4),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    themeColor.withOpacity(0.8),
-                    themeColor.withOpacity(0.4),
+      body: Container(
+        decoration: const BoxDecoration(
+          // Cozy pixel-like gradient background
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF2C1810), // Dark brown
+              Color(0xFF3D2817), // Medium brown
+              Color(0xFF4A3420), // Light brown
+              Color(0xFF5C4129), // Tan
+            ],
+            stops: [0.0, 0.3, 0.7, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A3420),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(0xFFFFE4B5).withOpacity(0.3),
+                      width: 2,
+                    ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 0,
+                      offset: const Offset(0, 2),
+                    ),
                   ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.topRight,
                 ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.white.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(
-                      Icons.arrow_back_ios,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.designName,
-                          style: GoogleFonts.saira(
-                            textStyle: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                child: Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3D2817),
+                        borderRadius: BorderRadius.circular(0),
+                        border: Border.all(
+                          color: const Color(0xFFFFE4B5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(
+                              Icons.arrow_back_ios,
+                              color: Color(0xFFFFE4B5),
+                              size: 24,
                             ),
                           ),
                         ),
-                        Text(
-                          '${icons.length} components • ${lines.length} connections',
-                          style: GoogleFonts.saira(
-                            textStyle: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.designName,
+                            style: GoogleFonts.saira(
+                              textStyle: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFFFE4B5),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${icons.length} components • ${lines.length} connections',
+                            style: GoogleFonts.saira(
+                              textStyle: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3D2817),
+                        borderRadius: BorderRadius.circular(0),
+                        border: Border.all(
+                          color: themeColor.withOpacity(0.7),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 0,
+                            offset: const Offset(2, 2),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _showExplanationSheet,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 20,
+                                  color: themeColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Explanation',
+                                  style: GoogleFonts.saira(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFFFFE4B5),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _showExplanationSheet,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: Colors.white.withOpacity(0.5)),
                       ),
                     ),
-                    icon: const Icon(Icons.info_outline, size: 20),
-                    label: Text(
-                      'Explanation',
-                      style: GoogleFonts.saira(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color.fromARGB(255, 20, 20, 30),
-                      Color.fromARGB(255, 6, 4, 4),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  ],
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return InteractiveViewer(
-                      transformationController: _transformationController,
-                      boundaryMargin: const EdgeInsets.all(100),
-                      minScale: 0.1,
-                      maxScale: 3.0,
-                      constrained: false,
-                      child: SizedBox(
-                        width: math.max(constraints.maxWidth, 2000),
-                        height: math.max(constraints.maxHeight, 1500),
-                        child: Stack(
-                          children: [
-                            CustomPaint(
-                              size: Size(
-                                math.max(constraints.maxWidth, 2000),
-                                math.max(constraints.maxHeight, 1500),
+              ),
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF3D2817), Color(0xFF2C1810)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return InteractiveViewer(
+                        transformationController: _transformationController,
+                        boundaryMargin: const EdgeInsets.all(100),
+                        minScale: 0.1,
+                        maxScale: 3.0,
+                        constrained: false,
+                        child: SizedBox(
+                          width: math.max(constraints.maxWidth, 2000),
+                          height: math.max(constraints.maxHeight, 1500),
+                          child: Stack(
+                            children: [
+                              CustomPaint(
+                                size: Size(
+                                  math.max(constraints.maxWidth, 2000),
+                                  math.max(constraints.maxHeight, 1500),
+                                ),
+                                painter: _GridPainter(),
                               ),
-                              painter: _GridPainter(),
-                            ),
-                            CustomPaint(
-                              size: Size(
-                                math.max(constraints.maxWidth, 2000),
-                                math.max(constraints.maxHeight, 1500),
+                              CustomPaint(
+                                size: Size(
+                                  math.max(constraints.maxWidth, 2000),
+                                  math.max(constraints.maxHeight, 1500),
+                                ),
+                                painter: _DemoLinePainter(lines: lines),
                               ),
-                              painter: _DemoLinePainter(lines: lines),
-                            ),
-                            ...icons.map((icon) => _buildIconOnCanvas(icon)),
-                          ],
+                              ...icons.map((icon) => _buildIconOnCanvas(icon)),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                border: Border(
-                  top: BorderSide(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 1,
+                      );
+                    },
                   ),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.touch_app,
-                    color: Colors.white.withOpacity(0.5),
-                    size: 16,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Pinch to zoom • Drag to pan',
-                    style: GoogleFonts.saira(
-                      fontSize: 12,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.touch_app,
                       color: Colors.white.withOpacity(0.5),
+                      size: 16,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      'Pinch to zoom • Drag to pan',
+                      style: GoogleFonts.saira(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
