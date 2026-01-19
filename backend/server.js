@@ -715,7 +715,7 @@ const chatMessageSchema = new mongoose.Schema({
   },
   designNotes: {
     type: String,
-    maxlength: 2000
+    maxlength: 10000
   },
   designScore: {
     type: Number,
@@ -805,7 +805,7 @@ app.post('/api/chat/send', async (req, res) => {
     message = sanitizeString(message, 500);
     country = sanitizeString(country, 10) || '🌍';
     designName = designName ? sanitizeString(designName, 100) : null;
-    designNotes = designNotes ? sanitizeString(designNotes, 2000) : null;
+    designNotes = designNotes ? sanitizeString(designNotes, 10000) : null;
     designScore = designScore ? validateScore(designScore) : null;
     // Canvas data is JSON string - validate it's valid JSON if provided
     if (designCanvas) {
