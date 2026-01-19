@@ -12,6 +12,7 @@ import 'design_comparison_service.dart';
 class SystemDesignCanvasScreen extends StatefulWidget {
   final String systemName;
   final Map<String, dynamic>? initialCanvasData;
+  final String? initialNotes; // Initial notes for shared designs
   final Function(
     String question,
     String notes,
@@ -23,6 +24,7 @@ class SystemDesignCanvasScreen extends StatefulWidget {
     super.key,
     required this.systemName,
     this.initialCanvasData,
+    this.initialNotes,
     this.onSubmitDesign,
   });
 
@@ -2449,6 +2451,9 @@ class SystemDesignCanvasScreenState extends State<SystemDesignCanvasScreen>
                                                       .onSubmitDesign, // Pass the callback
                                               canvasData:
                                                   canvasData, // Pass canvas data for validation
+                                              initialNotes:
+                                                  widget
+                                                      .initialNotes, // Pass initial notes for shared designs
                                             ),
                                       ),
                                     );

@@ -123,6 +123,7 @@ class SystemDescriptionNotebook extends StatefulWidget {
   final Function(String, String, CanvasValidationData?)?
   onSubmitDesign; // Add callback for AI evaluation with canvas data
   final CanvasValidationData? canvasData; // Canvas data for validation
+  final String? initialNotes; // Initial notes for shared designs
 
   const SystemDescriptionNotebook({
     super.key,
@@ -131,6 +132,7 @@ class SystemDescriptionNotebook extends StatefulWidget {
     this.usedComponents,
     this.onSubmitDesign, // Add the callback parameter
     this.canvasData, // Canvas data for validation
+    this.initialNotes, // Initial notes for shared designs
   });
 
   @override
@@ -182,6 +184,19 @@ class _SystemDescriptionNotebookState extends State<SystemDescriptionNotebook> {
   }
 
   void _loadNote() async {
+    // If initial notes are provided (from shared design), use them
+    if (widget.initialNotes != null && widget.initialNotes!.isNotEmpty) {
+      setState(() {
+        _controller.text = widget.initialNotes!;
+      });
+      // Also save to database so it persists
+      await SystemDatabaseManager.saveNotesToSpecificDatabase(
+        displaySystemName,
+        widget.initialNotes!,
+      );
+      return;
+    }
+
     // Load from specific system database
     final savedNote = await SystemDatabaseManager.loadNotesFromSpecificDatabase(
       displaySystemName,

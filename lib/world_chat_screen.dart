@@ -171,7 +171,8 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
     });
 
     if (_hasAccess) {
-      _loadUserInfo();
+      // Wait for user info to load before loading messages
+      await _loadUserInfo();
       _loadMessages();
       _loadSavedDesigns();
       // Auto-refresh messages every 10 seconds
@@ -407,18 +408,21 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
       print('Send response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        print('Message sent successfully, clearing input and reloading...');
         _messageController.clear();
         setState(() {
           _selectedDesign = null;
         });
         await _loadMessages(showLoading: false);
+        print('Messages reloaded after send');
       } else {
-        print('Failed to send: ${response.body}');
-        _showError('Failed to send message (${response.statusCode})');
+        print('Failed to send: ${response.statusCode} - ${response.body}');
+        _showError('Failed to send message (${response.statusCode}): ${response.body}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error sending message: $e');
-      _showError('Connection error. Please try again.');
+      print('Stack trace: $stackTrace');
+      _showError('Connection error: ${e.toString().length > 100 ? e.toString().substring(0, 100) : e}');
     } finally {
       setState(() => _isSending = false);
     }
