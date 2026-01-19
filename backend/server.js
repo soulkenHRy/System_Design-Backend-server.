@@ -145,7 +145,21 @@ app.use(cors({
   methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'x-app-signature', 'x-app-timestamp']
 }));
-app.use(express.json({ limit: '10kb' })); // Limit body size
+app.use(express.json({ limit: '100kb' })); // Limit body size (increased for chat with canvas data)
+
+// Error handler for JSON parsing and body size errors
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    console.error('Request body too large:', err.message);
+    return res.status(413).json({ error: 'Request body too large' });
+  }
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('Invalid JSON:', err.message);
+    return res.status(400).json({ error: 'Invalid JSON in request body' });
+  }
+  next(err);
+});
+
 app.use(rateLimiter);
 app.use(verifySignature);
 
@@ -708,6 +722,11 @@ const chatMessageSchema = new mongoose.Schema({
     min: 0,
     max: 100
   },
+  // Canvas design data (JSON string of nodes, connections, etc.)
+  designCanvas: {
+    type: String,
+    maxlength: 50000 // Allow large canvas data
+  },
   timestamp: {
     type: Date,
     default: Date.now,
@@ -747,6 +766,7 @@ app.get('/api/chat/messages', async (req, res) => {
         designName: msg.designName,
         designNotes: msg.designNotes,
         designScore: msg.designScore,
+        designCanvas: msg.designCanvas,
         timestamp: msg.timestamp.getTime()
       })),
       count: messages.length
@@ -761,13 +781,22 @@ app.get('/api/chat/messages', async (req, res) => {
  * Send a chat message
  * POST /api/chat/send
  * 
- * Body: { userId, username, country, message, designName?, designNotes?, designScore? }
+ * Body: { userId, username, country, message, designName?, designNotes?, designScore?, designCanvas? }
  */
 app.post('/api/chat/send', async (req, res) => {
   try {
-    let { userId, username, country, message, designName, designNotes, designScore } = req.body;
+    let { userId, username, country, message, designName, designNotes, designScore, designCanvas } = req.body;
+
+    console.log('Chat send request:', { 
+      userId: userId?.substring(0, 8) + '...', 
+      username, 
+      messageLength: message?.length,
+      hasDesign: !!designName,
+      hasCanvas: !!designCanvas
+    });
 
     if (!userId || !message) {
+      console.log('Missing required fields:', { hasUserId: !!userId, hasMessage: !!message });
       return res.status(400).json({ error: 'userId and message are required' });
     }
 
@@ -778,6 +807,17 @@ app.post('/api/chat/send', async (req, res) => {
     designName = designName ? sanitizeString(designName, 100) : null;
     designNotes = designNotes ? sanitizeString(designNotes, 2000) : null;
     designScore = designScore ? validateScore(designScore) : null;
+    // Canvas data is JSON string - validate it's valid JSON if provided
+    if (designCanvas) {
+      try {
+        JSON.parse(designCanvas);
+        if (designCanvas.length > 50000) {
+          designCanvas = null; // Too large, skip it
+        }
+      } catch {
+        designCanvas = null; // Invalid JSON, skip it
+      }
+    }
 
     if (message.length < 1) {
       return res.status(400).json({ error: 'Message cannot be empty' });
@@ -796,6 +836,7 @@ app.post('/api/chat/send', async (req, res) => {
       designName,
       designNotes,
       designScore,
+      designCanvas,
       timestamp: new Date()
     });
 

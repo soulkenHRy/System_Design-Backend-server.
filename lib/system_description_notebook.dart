@@ -66,27 +66,50 @@ class CanvasValidationResult {
     return ((activeConnectionCount / totalConnectionCount) * 100).round();
   }
 
-  // Canvas score (0-50 points) based on data flow health
-  // More data flowing = higher score
+  // Canvas score (0-50 points) based on design complexity and data flow
   int get canvasScore {
     if (totalIconCount == 0) return 0;
 
-    int score = 0;
-
-    // Base score from data flow health (up to 30 points)
-    // Data flow health is based on active connections / total connections
-    score += ((dataFlowHealth / 100) * 30).round();
-
-    // Bonus for having a data source (10 points)
-    if (hasDataSource) {
-      score += 10;
+    // Calculate a complexity multiplier based on icon count
+    // 1-2 icons = 0.1x, 3-4 = 0.3x, 5-6 = 0.5x, 7-9 = 0.7x, 10+ = 1.0x
+    double complexityMultiplier;
+    if (totalIconCount >= 10) {
+      complexityMultiplier = 1.0;
+    } else if (totalIconCount >= 7) {
+      complexityMultiplier = 0.7;
+    } else if (totalIconCount >= 5) {
+      complexityMultiplier = 0.5;
+    } else if (totalIconCount >= 3) {
+      complexityMultiplier = 0.3;
+    } else {
+      complexityMultiplier = 0.1; // 1-2 icons = very low multiplier
     }
 
-    // Bonus for connected components (up to 10 points)
-    // Fewer isolated icons = higher score
-    if (totalIconCount > 0) {
-      final connectedRatio = 1.0 - (isolatedIconCount / totalIconCount);
-      score += (connectedRatio * 10).round();
+    int score = 0;
+
+    // COMPONENT QUANTITY BASE (up to 20 points)
+    score += (20 * complexityMultiplier).round();
+
+    // CONNECTION QUANTITY (up to 15 points) - also scaled
+    double connectionScore = 0;
+    if (totalConnectionCount >= 8) {
+      connectionScore = 15;
+    } else if (totalConnectionCount >= 5) {
+      connectionScore = 10;
+    } else if (totalConnectionCount >= 3) {
+      connectionScore = 7;
+    } else if (totalConnectionCount >= 1) {
+      connectionScore = 3;
+    }
+    score += (connectionScore * complexityMultiplier).round();
+
+    // DATA FLOW HEALTH (up to 10 points) - scaled by complexity
+    final flowScore = ((dataFlowHealth / 100) * 10).round();
+    score += (flowScore * complexityMultiplier).round();
+
+    // DATA SOURCE BONUS (up to 5 points) - scaled by complexity
+    if (hasDataSource) {
+      score += (5 * complexityMultiplier).round();
     }
 
     return score.clamp(0, 50);

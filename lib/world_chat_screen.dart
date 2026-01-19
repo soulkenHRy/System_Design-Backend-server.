@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'leaderboard_api_service.dart';
 import 'design_manager.dart';
 import 'system_database_manager.dart';
+import 'unlimited_design_screen.dart';
 
 /// A chat message in the World Chat
 class ChatMessage {
@@ -18,6 +19,8 @@ class ChatMessage {
   final String? designName;
   final String? designNotes;
   final int? designScore;
+  final Map<String, dynamic>?
+  designCanvas; // Canvas design data (nodes, connections)
   final DateTime timestamp;
   final bool isCurrentUser;
 
@@ -30,6 +33,7 @@ class ChatMessage {
     this.designName,
     this.designNotes,
     this.designScore,
+    this.designCanvas,
     required this.timestamp,
     this.isCurrentUser = false,
   });
@@ -38,6 +42,16 @@ class ChatMessage {
     Map<String, dynamic> json, {
     String? currentUserId,
   }) {
+    // Parse canvas data from JSON string
+    Map<String, dynamic>? canvasData;
+    if (json['designCanvas'] != null && json['designCanvas'] is String) {
+      try {
+        canvasData = jsonDecode(json['designCanvas']) as Map<String, dynamic>;
+      } catch (_) {
+        canvasData = null;
+      }
+    }
+
     return ChatMessage(
       odId: json['userId'] ?? '',
       odId2: json['messageId'] ?? '',
@@ -47,6 +61,7 @@ class ChatMessage {
       designName: json['designName'],
       designNotes: json['designNotes'],
       designScore: json['designScore'],
+      designCanvas: canvasData,
       timestamp:
           json['timestamp'] != null
               ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'])
@@ -64,8 +79,11 @@ class ChatMessage {
     'designName': designName,
     'designNotes': designNotes,
     'designScore': designScore,
+    'designCanvas': designCanvas != null ? jsonEncode(designCanvas) : null,
     'timestamp': timestamp.millisecondsSinceEpoch,
   };
+
+  bool get hasCanvas => designCanvas != null && designCanvas!.isNotEmpty;
 }
 
 class WorldChatScreen extends StatefulWidget {
@@ -87,17 +105,80 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
   Timer? _refreshTimer;
   List<SavedDesign> _savedDesigns = [];
   SavedDesign? _selectedDesign;
+  bool _hasAccess = false;
+  bool _checkingAccess = true;
 
   @override
   void initState() {
     super.initState();
-    _loadUserInfo();
-    _loadMessages();
-    _loadSavedDesigns();
-    // Auto-refresh messages every 10 seconds
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _loadMessages(showLoading: false);
+    _cleanupTempDesigns(); // Clean any leftover temp designs
+    _checkAccess();
+  }
+
+  /// Clean up any temporary shared designs left from previous sessions
+  Future<void> _cleanupTempDesigns() async {
+    try {
+      final designs = await DesignManager.getSavedDesigns();
+      for (final design in designs) {
+        if (design.id.startsWith('temp_shared_') ||
+            design.id.startsWith('shared_')) {
+          await DesignManager.deleteDesign(design.id);
+          print('Cleaned up temp design: ${design.id}');
+        }
+      }
+    } catch (e) {
+      print('Error cleaning temp designs: $e');
+    }
+  }
+
+  Future<void> _checkAccess() async {
+    final prefs = await SharedPreferences.getInstance();
+    final totalBestScore = prefs.getInt('user_total_best_score') ?? 0;
+
+    // Load designs to check if user has any
+    final unlimitedDesigns = await DesignManager.getSavedDesigns();
+
+    // Check system designs for notes
+    bool hasSystemDesigns = false;
+    final systemNames = [
+      'URL Shortener (e.g., TinyURL)',
+      'Pastebin Service (e.g., Pastebin.com)',
+      'Web Crawler',
+      'Social Media News Feed (e.g., Facebook, X/Twitter)',
+      'Video Streaming Service (e.g., Netflix, YouTube)',
+      'Ride-Sharing Service (e.g., Uber, Lyft)',
+      'Collaborative Editor (e.g., Google Docs, Figma)',
+      'Live Streaming Platform (e.g., Twitch, YouTube Live)',
+      'Global Gaming Leaderboard',
+    ];
+
+    for (final systemName in systemNames) {
+      final notes = await SystemDatabaseManager.loadNotesFromSpecificDatabase(
+        systemName,
+      );
+      if (notes != null && notes.isNotEmpty) {
+        hasSystemDesigns = true;
+        break;
+      }
+    }
+
+    final hasDesigns = unlimitedDesigns.isNotEmpty || hasSystemDesigns;
+    final hasLeaderboardAccess = totalBestScore > 0;
+
+    setState(() {
+      _hasAccess = hasDesigns || hasLeaderboardAccess;
+      _checkingAccess = false;
     });
+
+    if (_hasAccess) {
+      _loadUserInfo();
+      _loadMessages();
+      _loadSavedDesigns();
+      // Auto-refresh messages every 10 seconds
+      _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+        _loadMessages(showLoading: false);
+      });
+    }
   }
 
   @override
@@ -123,6 +204,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
 
     // Load system design evaluations using SystemDatabaseManager
     final systemDesigns = <SavedDesign>[];
+    final prefs = await SharedPreferences.getInstance();
 
     // All 9 system names from Design a System screen (must match exactly)
     final systemNames = [
@@ -141,19 +223,38 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
       final systemId = systemName.toLowerCase().replaceAll(' ', '_');
 
       // Load notes from the correct database using SystemDatabaseManager
-      final notes = await SystemDatabaseManager.loadNotesFromSpecificDatabase(systemName);
+      final notes = await SystemDatabaseManager.loadNotesFromSpecificDatabase(
+        systemName,
+      );
 
-      // Only add if there are notes saved
-      if (notes != null && notes.isNotEmpty) {
+      // Load canvas data from SharedPreferences (key: design_${systemName})
+      final canvasKey = 'design_$systemName';
+      final canvasJsonString = prefs.getString(canvasKey);
+      Map<String, dynamic> canvasData = {};
+
+      if (canvasJsonString != null) {
+        try {
+          final parsed = jsonDecode(canvasJsonString) as Map<String, dynamic>;
+          // Convert from {icons: [...], lines: [...]} to {droppedIcons: [...], drawnLines: [...]}
+          canvasData = {
+            'droppedIcons': parsed['icons'] ?? [],
+            'drawnLines': parsed['lines'] ?? [],
+          };
+        } catch (_) {
+          // Invalid JSON, skip
+        }
+      }
+
+      // Add if there are notes OR canvas data saved
+      if ((notes != null && notes.isNotEmpty) || canvasData.isNotEmpty) {
         systemDesigns.add(
           SavedDesign(
             id: systemId,
             name: systemName,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            canvasData:
-                {}, // System designs don't have canvas data in local storage
-            notes: notes,
+            canvasData: canvasData,
+            notes: notes ?? '',
           ),
         );
       }
@@ -161,7 +262,31 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
 
     setState(() {
       // Combine both lists - unlimited designs first, then system designs
-      _savedDesigns = [...unlimitedDesigns, ...systemDesigns];
+      // Filter out duplicates by checking if a similar name already exists
+      final allDesigns = <SavedDesign>[];
+      final seenNames = <String>{};
+
+      // Add unlimited designs first (user's custom + downloaded designs)
+      for (final design in unlimitedDesigns) {
+        // Extract base name (remove " (by username)" suffix for comparison)
+        final baseName =
+            design.name.replaceAll(RegExp(r'\s*\(by\s+[^)]+\)$'), '').trim();
+        if (!seenNames.contains(baseName.toLowerCase())) {
+          allDesigns.add(design);
+          seenNames.add(baseName.toLowerCase());
+        }
+      }
+
+      // Add system designs only if not already present
+      for (final design in systemDesigns) {
+        final baseName = design.name.toLowerCase();
+        if (!seenNames.contains(baseName)) {
+          allDesigns.add(design);
+          seenNames.add(baseName);
+        }
+      }
+
+      _savedDesigns = allDesigns;
     });
   }
 
@@ -223,30 +348,63 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
 
       // Get design score if sharing a design
       int? designScore;
+      String? designCanvasJson;
       if (_selectedDesign != null) {
         final systemId = _selectedDesign!.name.toLowerCase().replaceAll(
           ' ',
           '_',
         );
         designScore = prefs.getInt('best_score_$systemId') ?? 0;
+
+        // Include canvas data if available (limit size to prevent errors)
+        if (_selectedDesign!.canvasData.isNotEmpty) {
+          try {
+            // Simplify canvas data - only keep essential fields with short keys
+            final simplifiedCanvas = _simplifyCanvasData(
+              _selectedDesign!.canvasData,
+            );
+            final canvasJson = jsonEncode(simplifiedCanvas);
+            print('Canvas size after compression: ${canvasJson.length} bytes');
+            // Only include if under 10KB to stay within server limits
+            if (canvasJson.length < 10000) {
+              designCanvasJson = canvasJson;
+            } else {
+              print(
+                'Canvas data still too large (${canvasJson.length} bytes), sending without canvas',
+              );
+            }
+          } catch (e) {
+            print('Error encoding canvas data: $e');
+          }
+        }
       }
+
+      final requestBody = {
+        'userId': userId,
+        'username': _currentUsername,
+        'country': _currentCountry,
+        'message': message.isNotEmpty ? message : 'Check out my design! 🎨',
+        'designName': _selectedDesign?.name,
+        'designNotes': _selectedDesign?.notes,
+        'designScore': designScore,
+      };
+
+      // Only add canvas if it's valid
+      if (designCanvasJson != null) {
+        requestBody['designCanvas'] = designCanvasJson;
+      }
+
+      print('Sending chat message: ${jsonEncode(requestBody).length} bytes, hasDesign: ${_selectedDesign != null}, message: "${message.length > 50 ? message.substring(0, 50) + '...' : message}"');
 
       final response = await http
           .post(
             Uri.parse('${LeaderboardApiConfig.baseUrl}/api/chat/send'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'userId': userId,
-              'username': _currentUsername,
-              'country': _currentCountry,
-              'message':
-                  message.isNotEmpty ? message : 'Check out my design! 🎨',
-              'designName': _selectedDesign?.name,
-              'designNotes': _selectedDesign?.notes,
-              'designScore': designScore,
-            }),
+            body: jsonEncode(requestBody),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 20));
+
+      print('Send response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         _messageController.clear();
@@ -255,11 +413,12 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
         });
         await _loadMessages(showLoading: false);
       } else {
-        _showError('Failed to send message');
+        print('Failed to send: ${response.body}');
+        _showError('Failed to send message (${response.statusCode})');
       }
     } catch (e) {
       print('Error sending message: $e');
-      _showError('Failed to send message: $e');
+      _showError('Connection error. Please try again.');
     } finally {
       setState(() => _isSending = false);
     }
@@ -269,6 +428,41 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
+  }
+
+  /// Simplify canvas data - icons and lines
+  Map<String, dynamic> _simplifyCanvasData(Map<String, dynamic> canvasData) {
+    final List<dynamic> icons =
+        canvasData['droppedIcons'] ?? canvasData['icons'] ?? [];
+    final List<dynamic> lines =
+        canvasData['drawnLines'] ?? canvasData['lines'] ?? [];
+
+    // Keep all icon data needed for rendering (limit to 50 icons)
+    final simplifiedIcons =
+        icons.take(50).map((icon) {
+          return {
+            'x': (icon['positionX'] as num?)?.round() ?? 0,
+            'y': (icon['positionY'] as num?)?.round() ?? 0,
+            'n': icon['name']?.toString() ?? '',
+            'c': icon['category']?.toString() ?? '',
+            'ic': icon['iconCodePoint'] ?? 0,
+            'if': icon['iconFontFamily']?.toString() ?? 'MaterialIcons',
+          };
+        }).toList();
+
+    // Keep line connections (limit to 100 lines)
+    final simplifiedLines =
+        lines.take(100).map((line) {
+          return {
+            'x1': (line['startX'] as num?)?.round() ?? 0,
+            'y1': (line['startY'] as num?)?.round() ?? 0,
+            'x2': (line['endX'] as num?)?.round() ?? 0,
+            'y2': (line['endY'] as num?)?.round() ?? 0,
+            'cl': line['colorValue'] ?? line['color'] ?? 0xFF2196F3,
+          };
+        }).toList();
+
+    return {'i': simplifiedIcons, 'l': simplifiedLines};
   }
 
   void _showDesignPicker() {
@@ -433,6 +627,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
   void _showDesignDetails(ChatMessage message) {
     if (message.designName == null) return;
 
+    // Show confirmation dialog to download the design
     showDialog(
       context: context,
       builder:
@@ -444,11 +639,11 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
             ),
             title: Row(
               children: [
-                const Icon(Icons.architecture, color: Color(0xFFFF6B35)),
+                const Icon(Icons.download_rounded, color: Color(0xFFFF6B35)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    message.designName!,
+                    'Download Design',
                     style: GoogleFonts.saira(
                       color: const Color(0xFFFFE4B5),
                       fontSize: 18,
@@ -458,99 +653,153 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
                 ),
               ],
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Designer info
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3D2817),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          message.country,
-                          style: const TextStyle(fontSize: 20),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'By ${message.username}',
-                            style: GoogleFonts.saira(
-                              color: const Color(0xFFFFE4B5),
-                              fontWeight: FontWeight.bold,
-                            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Design info card
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3D2817),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.architecture,
+                            color: Color(0xFFFF6B35),
+                            size: 20,
                           ),
-                        ),
-                        if (message.designScore != null &&
-                            message.designScore! > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF6B35),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                          const SizedBox(width: 8),
+                          Expanded(
                             child: Text(
-                              '${message.designScore}/100',
+                              message.designName!,
                               style: GoogleFonts.saira(
-                                color: Colors.white,
-                                fontSize: 12,
+                                color: const Color(0xFFFFE4B5),
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Design notes
-                  Text(
-                    'Design Notes',
-                    style: GoogleFonts.saira(
-                      color: const Color(0xFFFF6B35),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3D2817),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFFF6B35).withOpacity(0.3),
+                        ],
                       ),
-                    ),
-                    constraints: const BoxConstraints(maxHeight: 200),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        message.designNotes ?? 'No notes provided',
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF6B35),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                message.username.isNotEmpty
+                                    ? message.username[0].toUpperCase()
+                                    : '?',
+                                style: GoogleFonts.saira(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'By ${message.username}',
+                            style: GoogleFonts.saira(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (message.designScore != null &&
+                              message.designScore! > 0) ...[
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF6B35),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${message.designScore}/100',
+                                style: GoogleFonts.saira(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Download this design to your saved designs and open it in the canvas editor?',
+                  style: GoogleFonts.robotoSlab(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+                if (message.hasCanvas) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Includes canvas diagram',
                         style: GoogleFonts.robotoSlab(
-                          color: Colors.white,
-                          fontSize: 13,
-                          height: 1.5,
+                          color: Colors.green,
+                          fontSize: 12,
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
-              ),
+              ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text(
-                  'Close',
-                  style: GoogleFonts.saira(color: const Color(0xFFFF6B35)),
+                  'Cancel',
+                  style: GoogleFonts.saira(color: Colors.white54),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _downloadAndOpenDesign(message);
+                },
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: Text(
+                  'Download & Open',
+                  style: GoogleFonts.saira(fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ],
@@ -558,8 +807,292 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
     );
   }
 
+  /// Downloads the shared design and opens it in the canvas editor (temporary view)
+  Future<void> _downloadAndOpenDesign(ChatMessage message) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2C1810),
+            content: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: Color(0xFFFF6B35)),
+                const SizedBox(width: 16),
+                Text(
+                  'Opening design...',
+                  style: GoogleFonts.saira(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+    );
+
+    try {
+      // Decompress canvas data if available
+      Map<String, dynamic> canvasData = {};
+      if (message.hasCanvas && message.designCanvas != null) {
+        canvasData = _decompressCanvasData(message.designCanvas!);
+      }
+
+      // Create a temporary SavedDesign (with special prefix for cleanup)
+      final designId = 'temp_shared_${DateTime.now().millisecondsSinceEpoch}';
+      final savedDesign = SavedDesign(
+        id: designId,
+        name: '${message.designName} (by ${message.username})',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        canvasData: canvasData,
+        notes: message.designNotes ?? '',
+      );
+
+      // Temporarily save the design (needed for canvas screen to work)
+      await DesignManager.saveDesign(savedDesign);
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Navigate to the design editor and delete after returning
+      if (mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => UnlimitedDesignScreen(initialDesign: savedDesign),
+          ),
+        );
+
+        // Delete the temporary design after user finishes viewing
+        await DesignManager.deleteDesign(designId);
+        print('Deleted temporary shared design: $designId');
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Failed to open design: $e',
+                    style: GoogleFonts.saira(),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Decompresses the canvas data - icons and lines
+  Map<String, dynamic> _decompressCanvasData(Map<String, dynamic> compressed) {
+    final List<dynamic> icons = [];
+    final List<dynamic> lines = [];
+
+    // Decompress icons (i -> icons format expected by canvas)
+    if (compressed['i'] != null) {
+      for (final icon in compressed['i']) {
+        icons.add({
+          'positionX': (icon['x'] ?? 0).toDouble(),
+          'positionY': (icon['y'] ?? 0).toDouble(),
+          'name': icon['n'] ?? '',
+          'category': icon['c'] ?? '',
+          'iconCodePoint': icon['ic'] ?? 0xe156,
+          'iconFontFamily': icon['if'] ?? 'MaterialIcons',
+        });
+      }
+    }
+    // Also support old format (droppedIcons)
+    if (compressed['droppedIcons'] != null) {
+      for (final icon in compressed['droppedIcons']) {
+        icons.add({
+          'positionX': (icon['positionX'] ?? icon['x'] ?? 0).toDouble(),
+          'positionY': (icon['positionY'] ?? icon['y'] ?? 0).toDouble(),
+          'name': icon['name'] ?? icon['n'] ?? '',
+          'category': icon['category'] ?? icon['c'] ?? '',
+          'iconCodePoint': icon['iconCodePoint'] ?? icon['ic'] ?? 0xe156,
+          'iconFontFamily':
+              icon['iconFontFamily'] ?? icon['if'] ?? 'MaterialIcons',
+        });
+      }
+    }
+
+    // Decompress lines (l -> lines format expected by canvas)
+    if (compressed['l'] != null) {
+      for (final line in compressed['l']) {
+        lines.add({
+          'startX': (line['x1'] ?? 0).toDouble(),
+          'startY': (line['y1'] ?? 0).toDouble(),
+          'endX': (line['x2'] ?? 0).toDouble(),
+          'endY': (line['y2'] ?? 0).toDouble(),
+          'colorValue': line['cl'] ?? 0xFF2196F3,
+        });
+      }
+    }
+    // Also support old format (drawnLines)
+    if (compressed['drawnLines'] != null) {
+      for (final line in compressed['drawnLines']) {
+        lines.add({
+          'startX': (line['startX'] ?? line['x1'] ?? 0).toDouble(),
+          'startY': (line['startY'] ?? line['y1'] ?? 0).toDouble(),
+          'endX': (line['endX'] ?? line['x2'] ?? 0).toDouble(),
+          'endY': (line['endY'] ?? line['y2'] ?? 0).toDouble(),
+          'colorValue':
+              line['colorValue'] ?? line['color'] ?? line['cl'] ?? 0xFF2196F3,
+        });
+      }
+    }
+
+    // Return in format expected by canvas screen
+    return {'icons': icons, 'lines': lines};
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Show loading while checking access
+    if (_checkingAccess) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF2C1810),
+                Color(0xFF3D2817),
+                Color(0xFF4A3420),
+                Color(0xFF5C4129),
+              ],
+            ),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(color: Color(0xFFFF6B35)),
+          ),
+        ),
+      );
+    }
+
+    // Show access denied message if user hasn't designed anything
+    if (!_hasAccess) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF2C1810),
+                Color(0xFF3D2817),
+                Color(0xFF4A3420),
+                Color(0xFF5C4129),
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Header with back button
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: Color(0xFFFFE4B5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Access denied content
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3D2817),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFFF6B35).withOpacity(0.5),
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.lock_outline,
+                              size: 64,
+                              color: Color(0xFFFF6B35),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'World Chat Locked',
+                            style: GoogleFonts.saira(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFFFFE4B5),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'To access World Chat, you need to:\n\n'
+                            '• Complete at least one system design\n'
+                            '• Get your design evaluated by the AI\n\n'
+                            'This ensures you have something to share with the community!',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.robotoSlab(
+                              fontSize: 14,
+                              color: Colors.white70,
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          ElevatedButton.icon(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.design_services),
+                            label: const Text('Go Design Something'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF6B35),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -845,7 +1378,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isMe) ...[
-            // Avatar for other users
+            // Avatar for other users - show first letter of username
             Container(
               width: 36,
               height: 36,
@@ -856,8 +1389,14 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
               ),
               child: Center(
                 child: Text(
-                  message.country,
-                  style: const TextStyle(fontSize: 16),
+                  message.username.isNotEmpty
+                      ? message.username[0].toUpperCase()
+                      : '?',
+                  style: GoogleFonts.saira(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFFFE4B5),
+                  ),
                 ),
               ),
             ),
@@ -923,9 +1462,14 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.architecture,
-                                  color: Color(0xFFFFE4B5),
+                                Icon(
+                                  message.hasCanvas
+                                      ? Icons.grid_view
+                                      : Icons.architecture,
+                                  color:
+                                      message.hasCanvas
+                                          ? const Color(0xFF4CAF50)
+                                          : const Color(0xFFFFE4B5),
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
@@ -943,15 +1487,47 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      if (message.designScore != null &&
-                                          message.designScore! > 0)
-                                        Text(
-                                          'Score: ${message.designScore}/100',
-                                          style: GoogleFonts.robotoSlab(
-                                            color: Colors.white60,
-                                            fontSize: 11,
-                                          ),
-                                        ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (message.hasCanvas)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 1,
+                                                  ),
+                                              margin: const EdgeInsets.only(
+                                                right: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(
+                                                  0xFF4CAF50,
+                                                ).withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                '📐 Canvas',
+                                                style: GoogleFonts.robotoSlab(
+                                                  color: const Color(
+                                                    0xFF4CAF50,
+                                                  ),
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ),
+                                          if (message.designScore != null &&
+                                              message.designScore! > 0)
+                                            Text(
+                                              'Score: ${message.designScore}/100',
+                                              style: GoogleFonts.robotoSlab(
+                                                color: Colors.white60,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
