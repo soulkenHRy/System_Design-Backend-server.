@@ -395,7 +395,9 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
         requestBody['designCanvas'] = designCanvasJson;
       }
 
-      print('Sending chat message: ${jsonEncode(requestBody).length} bytes, hasDesign: ${_selectedDesign != null}, message: "${message.length > 50 ? message.substring(0, 50) + '...' : message}"');
+      print(
+        'Sending chat message: ${jsonEncode(requestBody).length} bytes, hasDesign: ${_selectedDesign != null}, message: "${message.length > 50 ? message.substring(0, 50) + '...' : message}"',
+      );
 
       final response = await http
           .post(
@@ -417,12 +419,16 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
         print('Messages reloaded after send');
       } else {
         print('Failed to send: ${response.statusCode} - ${response.body}');
-        _showError('Failed to send message (${response.statusCode}): ${response.body}');
+        _showError(
+          'Failed to send message (${response.statusCode}): ${response.body}',
+        );
       }
     } catch (e, stackTrace) {
       print('Error sending message: $e');
       print('Stack trace: $stackTrace');
-      _showError('Connection error: ${e.toString().length > 100 ? e.toString().substring(0, 100) : e}');
+      _showError(
+        'Connection error: ${e.toString().length > 100 ? e.toString().substring(0, 100) : e}',
+      );
     } finally {
       setState(() => _isSending = false);
     }

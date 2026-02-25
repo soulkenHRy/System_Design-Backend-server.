@@ -734,7 +734,8 @@ class _UnlimitedDesignScreenState extends State<UnlimitedDesignScreen>
             key: _canvasKey,
             systemName: _currentSystemName,
             initialCanvasData: widget.initialDesign?.canvasData,
-            initialNotes: widget.initialDesign?.notes, // Pass notes from shared design
+            initialNotes:
+                widget.initialDesign?.notes, // Pass notes from shared design
             onSubmitDesign:
                 _submitDesignForEvaluation, // New callback for submission
           ),

@@ -64,3 +64,4 @@ __pycache__/
 *_judge.py
 train_*.py
 comprehensive_*.json
+backend/

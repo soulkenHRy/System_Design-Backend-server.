@@ -12,7 +12,8 @@ class LeaderboardApiConfig {
   /// Example: 'https://quiz-game-backend-production.up.railway.app'
   ///
   /// For local testing, use: 'http://localhost:3000' or 'http://10.0.2.2:3000' for Android emulator
-  static const String baseUrl = 'https://web-production-233c.up.railway.app';
+  static const String baseUrl =
+      'https://patient-betteann-system-design-0def3375.koyeb.app';
 
   /// Timeout duration for API requests
   static const Duration timeout = Duration(seconds: 10);
