@@ -61,6 +61,7 @@ __pycache__/
 *.pkl
 *.csv
 *.sh
+!build.sh
 *_judge.py
 train_*.py
 comprehensive_*.json
