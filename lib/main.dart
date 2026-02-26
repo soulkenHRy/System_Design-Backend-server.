@@ -4,7 +4,7 @@ import './pre_start_screen.dart';
 import './start_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import './leaderboard_screen.dart'; // ADD THIS LINE - Import leaderboard to access bot manager
 
 void main() async {
@@ -90,11 +90,12 @@ class _MyHomePageState extends State<MyHomePage>
   }
 
   String _getSystemUsername() {
+    if (kIsWeb) return 'User';
     try {
-      // Try to get system username
-      return Platform.environment['USER'] ??
-          Platform.environment['USERNAME'] ??
-          'User';
+      // Try to get system username (non-web only)
+      return String.fromEnvironment('USER', defaultValue: '') != ''
+          ? const String.fromEnvironment('USER')
+          : 'User';
     } catch (e) {
       return 'User';
     }

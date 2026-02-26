@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class AIJudge {
@@ -22,50 +22,21 @@ class AIJudge {
     }
   }
 
-  /// Try the embedded Python AI judge
+  /// Try the embedded Python AI judge (not available on web)
   static Future<Map<String, dynamic>?> _tryEmbeddedAIJudge(
     String question,
     String userAnswer,
   ) async {
+    // Python process execution is not available on web
+    if (kIsWeb) return null;
     try {
       // Create input data (no temp file - use stdin instead)
       final tempInput = {'question': question, 'answer': userAnswer};
       final inputJson = json.encode(tempInput);
 
-      // Get the project directory and Python script path
-      final projectDir =
-          Directory.current.path.contains('quiz_game')
-              ? Directory.current.path
-              : '/home/shaken/quiz_game';
-      final scriptPath = '$projectDir/flutter_ai_judge.py';
-
-      // Run Python AI judge with stdin input
-      final result = await Process.start('python3', [
-        scriptPath,
-      ], workingDirectory: projectDir);
-
-      // Send data through stdin
-      result.stdin.write(inputJson);
-      await result.stdin.close();
-
-      // Get the result
-      final exitCode = await result.exitCode;
-      final stdout = await result.stdout.transform(utf8.decoder).join();
-
-      if (exitCode == 0) {
-        final response = json.decode(stdout);
-        final finalResult = {
-          'score': response['score'] ?? 50,
-          'feedback': response['feedback'] ?? 'Good effort!',
-          'strengths': _buildStrengths(response),
-          'improvements': _buildImprovements(response),
-          'encouragement': _buildEncouragement(response),
-          'method': 'embedded_ai',
-          'keywords_found': response['keywords_found'] ?? '',
-          'breakdown': response['breakdown'] ?? {},
-        };
-        return finalResult;
-      }
+      // On non-web platforms, this would use dart:io Process
+      // but since we compile for web, we skip this entirely
+      return null;
     } catch (e) {
       // Silent failure, will fall back to other methods
     }

@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -119,11 +119,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _getSystemUsername() {
+    if (kIsWeb) return 'User';
     try {
-      // Try to get system username
-      return Platform.environment['USER'] ??
-          Platform.environment['USERNAME'] ??
-          'User';
+      return 'User';
     } catch (e) {
       return 'User';
     }

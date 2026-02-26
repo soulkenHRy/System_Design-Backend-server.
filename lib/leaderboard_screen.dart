@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'leaderboard_api_service.dart';
 
 Future<List<Map<String, dynamic>>> _generateStaticBots() async {
@@ -515,11 +515,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   String _serverName = '';
 
   String _getSystemUsername() {
+    if (kIsWeb) return 'You';
     try {
-      // Try to get system username
-      return Platform.environment['USER'] ??
-          Platform.environment['USERNAME'] ??
-          'You';
+      return 'You';
     } catch (e) {
       return 'You';
     }
