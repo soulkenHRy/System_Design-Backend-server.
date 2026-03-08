@@ -18,12 +18,21 @@
 
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
+const { Server: SocketIOServer } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 
 const app = express();
+const server = http.createServer(app);
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 const PORT = process.env.PORT || 3000;
 
 // ============================================
@@ -865,10 +874,129 @@ app.post('/api/chat/send', async (req, res) => {
 });
 
 // ============================================
+// SOCKET.IO: Real-time Chat
+// ============================================
+io.on('connection', (socket) => {
+  console.log(`🔌 Client connected: ${socket.id}`);
+
+  // Send recent messages to newly connected client
+  socket.on('requestHistory', async () => {
+    try {
+      const messages = await ChatMessage.find()
+        .sort({ timestamp: -1 })
+        .limit(20)
+        .lean();
+      messages.reverse();
+
+      socket.emit('chatHistory', {
+        messages: messages.map(msg => ({
+          messageId: msg.messageId,
+          userId: msg.userId,
+          username: msg.username,
+          country: msg.country,
+          message: msg.message,
+          designName: msg.designName,
+          designNotes: msg.designNotes,
+          designScore: msg.designScore,
+          designCanvas: msg.designCanvas,
+          timestamp: msg.timestamp.getTime()
+        }))
+      });
+    } catch (error) {
+      console.error('Socket history error:', error);
+      socket.emit('chatError', { error: 'Failed to fetch messages' });
+    }
+  });
+
+  // Handle incoming chat message
+  socket.on('sendMessage', async (data) => {
+    try {
+      let { userId, username, country, message, designName, designNotes, designScore, designCanvas } = data;
+
+      if (!userId || !message) {
+        return socket.emit('chatError', { error: 'userId and message are required' });
+      }
+
+      // SECURITY: Sanitize inputs
+      username = sanitizeString(username, MAX_USERNAME_LENGTH) || 'Anonymous';
+      message = sanitizeString(message, 500);
+      country = sanitizeString(country, 10) || '\uD83C\uDF0D';
+      designName = designName ? sanitizeString(designName, 100) : null;
+      designNotes = designNotes ? sanitizeString(designNotes, 10000) : null;
+      designScore = designScore ? validateScore(designScore) : null;
+      if (designCanvas) {
+        try {
+          JSON.parse(designCanvas);
+          if (designCanvas.length > 50000) designCanvas = null;
+        } catch {
+          designCanvas = null;
+        }
+      }
+
+      if (message.length < 1) {
+        return socket.emit('chatError', { error: 'Message cannot be empty' });
+      }
+
+      const messageId = uuidv4();
+
+      const chatMessage = new ChatMessage({
+        messageId,
+        userId,
+        username,
+        country,
+        message,
+        designName,
+        designNotes,
+        designScore,
+        designCanvas,
+        timestamp: new Date()
+      });
+
+      await chatMessage.save();
+
+      // Clean up old messages (keep only last 100)
+      const messageCount = await ChatMessage.countDocuments();
+      if (messageCount > 100) {
+        const oldMessages = await ChatMessage.find()
+          .sort({ timestamp: 1 })
+          .limit(messageCount - 100);
+        const oldMessageIds = oldMessages.map(m => m._id);
+        await ChatMessage.deleteMany({ _id: { $in: oldMessageIds } });
+      }
+
+      // Broadcast to ALL connected clients (including sender)
+      const broadcastMsg = {
+        messageId,
+        userId,
+        username,
+        country,
+        message,
+        designName,
+        designNotes,
+        designScore,
+        designCanvas,
+        timestamp: chatMessage.timestamp.getTime()
+      };
+
+      io.emit('newMessage', broadcastMsg);
+      console.log(`💬 Message broadcast from ${username}`);
+    } catch (error) {
+      console.error('Socket send error:', error);
+      socket.emit('chatError', { error: 'Failed to send message' });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Client disconnected: ${socket.id}`);
+  });
+});
+
+// ============================================
 // START SERVER
 // ============================================
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Leaderboard API ready at http://localhost:${PORT}`);
+  console.log(`🔌 WebSocket ready for chat connections`);
 });

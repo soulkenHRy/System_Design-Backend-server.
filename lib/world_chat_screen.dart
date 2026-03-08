@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'leaderboard_api_service.dart';
 import 'design_manager.dart';
 import 'system_database_manager.dart';
@@ -102,7 +103,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
   String? _currentUserId;
   String _currentUsername = 'Player';
   String _currentCountry = '🌍';
-  Timer? _refreshTimer;
+  IO.Socket? _socket;
   List<SavedDesign> _savedDesigns = [];
   SavedDesign? _selectedDesign;
   bool _hasAccess = false;
@@ -171,22 +172,87 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
     });
 
     if (_hasAccess) {
-      // Wait for user info to load before loading messages
+      // Wait for user info to load before connecting
       await _loadUserInfo();
-      _loadMessages();
+      _connectSocket();
       _loadSavedDesigns();
-      // Auto-refresh messages every 10 seconds
-      _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-        _loadMessages(showLoading: false);
-      });
     }
+  }
+
+  /// Connect to the WebSocket server for real-time chat
+  void _connectSocket() {
+    _socket = IO.io(
+      LeaderboardApiConfig.baseUrl,
+      IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .disableAutoConnect()
+          .build(),
+    );
+
+    _socket!.onConnect((_) {
+      print('🔌 Connected to chat WebSocket');
+      // Request recent message history on connect
+      _socket!.emit('requestHistory');
+    });
+
+    _socket!.on('chatHistory', (data) {
+      final List<dynamic> messagesJson = data['messages'] ?? [];
+      setState(() {
+        _messages = messagesJson
+            .map((json) => ChatMessage.fromJson(
+                  json,
+                  currentUserId: _currentUserId,
+                ))
+            .toList();
+        _isLoading = false;
+      });
+      _scrollToBottom();
+    });
+
+    _socket!.on('newMessage', (data) {
+      final msg = ChatMessage.fromJson(
+        data as Map<String, dynamic>,
+        currentUserId: _currentUserId,
+      );
+      setState(() {
+        _messages.add(msg);
+        // Keep client-side list trimmed to last 100
+        if (_messages.length > 100) {
+          _messages.removeAt(0);
+        }
+      });
+      _scrollToBottom();
+    });
+
+    _socket!.on('chatError', (data) {
+      print('Chat error: $data');
+    });
+
+    _socket!.onDisconnect((_) {
+      print('❌ Disconnected from chat WebSocket');
+    });
+
+    _socket!.connect();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    _refreshTimer?.cancel();
+    _socket?.disconnect();
+    _socket?.dispose();
     super.dispose();
   }
 
@@ -292,6 +358,13 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
   }
 
   Future<void> _loadMessages({bool showLoading = true}) async {
+    // Messages are now loaded via WebSocket (chatHistory event).
+    // This method is kept as a fallback for manual refresh.
+    if (_socket != null && _socket!.connected) {
+      _socket!.emit('requestHistory');
+      return;
+    }
+
     if (showLoading) {
       setState(() => _isLoading = true);
     }
@@ -360,19 +433,12 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
         // Include canvas data if available (limit size to prevent errors)
         if (_selectedDesign!.canvasData.isNotEmpty) {
           try {
-            // Simplify canvas data - only keep essential fields with short keys
             final simplifiedCanvas = _simplifyCanvasData(
               _selectedDesign!.canvasData,
             );
             final canvasJson = jsonEncode(simplifiedCanvas);
-            print('Canvas size after compression: ${canvasJson.length} bytes');
-            // Only include if under 10KB to stay within server limits
             if (canvasJson.length < 10000) {
               designCanvasJson = canvasJson;
-            } else {
-              print(
-                'Canvas data still too large (${canvasJson.length} bytes), sending without canvas',
-              );
             }
           } catch (e) {
             print('Error encoding canvas data: $e');
@@ -380,7 +446,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
         }
       }
 
-      final requestBody = {
+      final messageData = {
         'userId': userId,
         'username': _currentUsername,
         'country': _currentCountry,
@@ -390,42 +456,41 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
         'designScore': designScore,
       };
 
-      // Only add canvas if it's valid
       if (designCanvasJson != null) {
-        requestBody['designCanvas'] = designCanvasJson;
+        messageData['designCanvas'] = designCanvasJson;
       }
 
-      print(
-        'Sending chat message: ${jsonEncode(requestBody).length} bytes, hasDesign: ${_selectedDesign != null}, message: "${message.length > 50 ? message.substring(0, 50) + '...' : message}"',
-      );
-
-      final response = await http
-          .post(
-            Uri.parse('${LeaderboardApiConfig.baseUrl}/api/chat/send'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 20));
-
-      print('Send response: ${response.statusCode} - ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print('Message sent successfully, clearing input and reloading...');
+      if (_socket != null && _socket!.connected) {
+        // Send via WebSocket
+        _socket!.emit('sendMessage', messageData);
         _messageController.clear();
         setState(() {
           _selectedDesign = null;
         });
-        await _loadMessages(showLoading: false);
-        print('Messages reloaded after send');
       } else {
-        print('Failed to send: ${response.statusCode} - ${response.body}');
-        _showError(
-          'Failed to send message (${response.statusCode}): ${response.body}',
-        );
+        // Fallback to HTTP if socket is disconnected
+        final response = await http
+            .post(
+              Uri.parse('${LeaderboardApiConfig.baseUrl}/api/chat/send'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(messageData),
+            )
+            .timeout(const Duration(seconds: 20));
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          _messageController.clear();
+          setState(() {
+            _selectedDesign = null;
+          });
+          await _loadMessages(showLoading: false);
+        } else {
+          _showError(
+            'Failed to send message (${response.statusCode})',
+          );
+        }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('Error sending message: $e');
-      print('Stack trace: $stackTrace');
       _showError(
         'Connection error: ${e.toString().length > 100 ? e.toString().substring(0, 100) : e}',
       );

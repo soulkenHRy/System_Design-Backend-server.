@@ -41,6 +41,7 @@ dependencies:
   intl: ^0.18.1
   audioplayers: ^5.1.0
   http: ^1.1.0
+  socket_io_client: ^3.0.2
   fl_chart: ^0.68.0
   connectivity_plus: ^6.0.5
 
